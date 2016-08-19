@@ -8,7 +8,7 @@ To be used with JEB v2.2.8. It will ship end of August.
 
 For more information about the matching system, please see our **Blog**.
 
-## Component
+## Components
 
 ### Android Signature Generator plugin
 
