@@ -33,6 +33,8 @@ Simply drop plugin into [JEB_FOLDER]/coreplugins folder and restart JEB.
 
 ### Running Signature Recognizer plugin
 
+Please make sure all your signature files are in the `[JEB_FOLDER]/coreplugins/android_sigs` folder.
+
 1. In JEB2, click `File -> Open` to open an android apk.
 2. Select `File -> Engines -> Execute` and select the Recognizer plugin.
 3. Customize the matching parameters if need ba and click `OK`.
