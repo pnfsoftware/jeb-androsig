@@ -1,12 +1,12 @@
-# **jeb2-androsig plugins** - ANDROID SIGNATURE MATCHING SYSTEM
+# Androsig - Android Library Code Matching for JEB
 
 ## Introduction
 
-The main function of the Dalvik library recognition plugins is to help deobfuscating obfuscated applications. Using our semi-generic collection of signatures for common libraries, library code can be recognized; methods and classes can be renamed; package hierarchies can be rebuilt. 
+The purpose of this plugin is to help deobfuscate obfuscated applications. Using our generic collection of signatures for common libraries, library code can be recognized; methods and classes can be renamed; package hierarchies can be rebuilt. 
 
-To be used with JEB v2.2.8. It will ship end of August.
+Minimum JEB version: v2.2.8 Business or Enterprise.
 
-For more information about the matching system, please see our **Blog**.
+Tutorial on how to use: [blog](https://www.pnfsoftware.com/blog/)
 
 ## Components
 
