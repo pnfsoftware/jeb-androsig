@@ -82,11 +82,11 @@ public class AndroidSigApplyPlugin implements IEnginesPlugin {
     public List<? extends IOptionDefinition> getExecutionOptionDefinitions() {
         return Arrays
                 .asList(new OptionDefinition(null,
-                        "The method will be ignored if its instruction size is no great than method size bar\nDefault value: 6"),
+                        "The method will be ignored if its instruction size is no great than method size bar\nValue range: >= 0 (Default value: 6)"),
                         new OptionDefinition("methodSizeBar", "Method size bar"),
                         new OptionDefinition(
                                 null,
-                                "The class will be ignored if (total matched instructions / total instructions) is no greater than matched instructions percentage bar\nDefault value: 0.5"),
+                                "The class will be ignored if (total matched instructions / total instructions) is no greater than matched instructions percentage bar\nValue range: 0.0 - 1.0 (Default value: 0.5)"),
                         new OptionDefinition("matchedInstusPercentageBar", "Matched instructions percentage bar"));
     }
 
