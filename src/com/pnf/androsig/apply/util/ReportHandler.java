@@ -42,7 +42,7 @@ public class ReportHandler {
         Map<Integer, String> matchedMethods = struInfo.getMatchedMethods();
         DecimalFormat df = new DecimalFormat("#.00");
         // Generate mapping file
-        File mapping = new File(System.getProperty("user.home") + "/Desktop", "mapping.txt");
+        File mapping = new File(System.getProperty("java.io.tmpdir"), "androsig-mapping.txt");
         try(BufferedWriter writer = new BufferedWriter(new FileWriter(mapping));) {
             List<? extends IDexClass> classes = unit.getClasses();
             if(classes == null || classes.size() == 0) {
@@ -123,7 +123,7 @@ public class ReportHandler {
         });
         
         
-        File report = new File(System.getProperty("user.home") + "/Desktop", "report.txt");
+        File report = new File(System.getProperty("java.io.tmpdir"), "androsig-report.txt");
         try(BufferedWriter writer = new BufferedWriter(new FileWriter(report));) {
             writer.write("*************** Summary ***************\n");
             writer.write("Total number of signature files: " + allSignatureFileCount + "\n");
