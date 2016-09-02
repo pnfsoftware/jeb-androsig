@@ -134,6 +134,9 @@ public class AndroidSigApplyPlugin implements IEnginesPlugin {
         }
         else {
             struInfo.methodSizeBar = Integer.parseInt(methodSizeBar);
+            if(struInfo.methodSizeBar < 0) {
+                struInfo.methodSizeBar = 6;
+            }
         }
 
         String matchedInstusPercentageBar = executionOptions.get("matchedInstusPercentageBar");
@@ -142,6 +145,9 @@ public class AndroidSigApplyPlugin implements IEnginesPlugin {
         }
         else {
             struInfo.matchedInstusPercentageBar = Double.parseDouble(matchedInstusPercentageBar);
+            if(struInfo.matchedInstusPercentageBar < 0.0 || struInfo.matchedInstusPercentageBar > 1.0) {
+                struInfo.matchedInstusPercentageBar = 0.5;
+            }
         }
 
         // Load all hashcodes
