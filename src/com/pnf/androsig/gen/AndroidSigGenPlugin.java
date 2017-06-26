@@ -42,8 +42,8 @@ import com.pnfsoftware.jeb.core.units.code.android.dex.IDexCodeItem;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethodData;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexPrototype;
-import com.pnfsoftware.jeb.util.IO;
-import com.pnfsoftware.jeb.util.Strings;
+import com.pnfsoftware.jeb.util.format.Strings;
+import com.pnfsoftware.jeb.util.io.IO;
 import com.pnfsoftware.jeb.util.logging.GlobalLog;
 import com.pnfsoftware.jeb.util.logging.ILogger;
 
@@ -78,7 +78,7 @@ public class AndroidSigGenPlugin implements IEnginesPlugin {
     public IPluginInformation getPluginInformation() {
         return new PluginInformation("Android Code Signature Generator",
                 "Generate generic signatures to identify Android libraries", "PNF Software",
-                Version.create(1, 0), Version.create(2, 2, 8), null);
+                Version.create(1, 0, 1), Version.create(2, 3), null);
     }
 
     @Override

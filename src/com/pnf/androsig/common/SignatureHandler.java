@@ -15,7 +15,7 @@ import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexCodeItem;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethodData;
-import com.pnfsoftware.jeb.util.Formatter;
+import com.pnfsoftware.jeb.util.format.Formatter;
 
 public class SignatureHandler {
     /**

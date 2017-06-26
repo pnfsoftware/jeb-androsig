@@ -35,9 +35,6 @@ public class DexMetadataGroupMethod extends MetadataGroup {
     private Map<String, Object> mmap = new HashMap<>();
     private StructureInfo struInfo = new StructureInfo();
 
-    public DexMetadataGroupMethod() {
-    }
-
     public DexMetadataGroupMethod(String name, MetadataGroupType type, StructureInfo struInfo) {
         super(name, type);
         this.struInfo = struInfo;

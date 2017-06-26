@@ -48,7 +48,7 @@ import com.pnfsoftware.jeb.core.Version;
 import com.pnfsoftware.jeb.core.events.J;
 import com.pnfsoftware.jeb.core.events.JebEvent;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
-import com.pnfsoftware.jeb.util.Strings;
+import com.pnfsoftware.jeb.util.format.Strings;
 import com.pnfsoftware.jeb.util.logging.GlobalLog;
 import com.pnfsoftware.jeb.util.logging.ILogger;
 
@@ -75,7 +75,7 @@ public class AndroidSigApplyPlugin implements IEnginesPlugin {
     public IPluginInformation getPluginInformation() {
         return new PluginInformation("Android Code Recognition",
                 "Apply code signatures to identify Android libraries", "PNF Software",
-                Version.create(1, 0), Version.create(2, 2, 8), null);
+                Version.create(1, 0, 1), Version.create(2, 3), null);
     }
 
     @Override
@@ -201,6 +201,7 @@ public class AndroidSigApplyPlugin implements IEnginesPlugin {
      * 
      * @param unit mandatory target unit
      */
+    @SuppressWarnings("unused")
     private void generatePaper(IDexUnit unit) {
         Map<String, String> map = new HashMap<String, String>();
         Set<String> set = new HashSet<String>();

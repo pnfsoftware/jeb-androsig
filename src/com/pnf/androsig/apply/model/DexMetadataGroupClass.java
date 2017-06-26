@@ -36,9 +36,6 @@ public class DexMetadataGroupClass extends MetadataGroup {
     private Map<String, Object> cmap = new HashMap<>();
     private StructureInfo struInfo = new StructureInfo();
 
-    public DexMetadataGroupClass() {
-    }
-
     public DexMetadataGroupClass(String name, MetadataGroupType type, StructureInfo struInfo) {
         super(name, type);
         this.struInfo = struInfo;

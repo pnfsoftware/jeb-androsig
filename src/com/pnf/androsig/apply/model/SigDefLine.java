@@ -18,7 +18,7 @@
 
 package com.pnf.androsig.apply.model;
 
-import com.pnfsoftware.jeb.util.Conversion;
+import com.pnfsoftware.jeb.util.encoding.Conversion;
 
 /**
  * Definition of one line of the signature files.

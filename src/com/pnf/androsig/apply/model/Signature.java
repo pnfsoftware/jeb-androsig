@@ -19,8 +19,6 @@
 package com.pnf.androsig.apply.model;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -35,8 +33,8 @@ import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexCodeItem;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethodData;
-import com.pnfsoftware.jeb.util.Conversion;
-import com.pnfsoftware.jeb.util.IO;
+import com.pnfsoftware.jeb.util.encoding.Conversion;
+import com.pnfsoftware.jeb.util.io.IO;
 import com.pnfsoftware.jeb.util.logging.GlobalLog;
 import com.pnfsoftware.jeb.util.logging.ILogger;
 
@@ -158,14 +156,11 @@ public class Signature {
     }
 
     private boolean loadHashCodes(File sigFile) {
-        List<String> lines;
-        try {
-            lines = IO.readLines(new FileInputStream(sigFile), Charset.forName("UTF-8"));
-        }
-        catch(IOException e) {
-            logger.catching(e);
+        List<String> lines = IO.readLines(sigFile, Charset.forName("UTF-8"));
+        if(lines == null) {
             return false;
         }
+
         for(String line: lines) {
             line = line.trim();
             if(line.isEmpty() || line.startsWith(";")) {
@@ -238,12 +233,8 @@ public class Signature {
         String libname = "Unknown library code";
         String author = "Unknown author";
         
-        List<String> lines;
-        try {
-            lines = IO.readLines(new FileInputStream(sigFile), Charset.forName("UTF-8"));
-        }
-        catch(IOException e) {
-            logger.catching(e);
+        List<String> lines = IO.readLines(sigFile, Charset.forName("UTF-8"));
+        if(lines == null) {
             return false;
         }
 
