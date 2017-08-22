@@ -78,7 +78,7 @@ public class AndroidSigGenPlugin implements IEnginesPlugin {
     public IPluginInformation getPluginInformation() {
         return new PluginInformation("Android Code Signature Generator",
                 "Generate generic signatures to identify Android libraries", "PNF Software",
-                Version.create(1, 0, 1), Version.create(2, 3), null);
+                Version.create(1, 0, 2), Version.create(2, 3, 3), null);
     }
 
     @Override

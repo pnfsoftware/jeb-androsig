@@ -75,7 +75,7 @@ public class AndroidSigApplyPlugin implements IEnginesPlugin {
     public IPluginInformation getPluginInformation() {
         return new PluginInformation("Android Code Recognition",
                 "Apply code signatures to identify Android libraries", "PNF Software",
-                Version.create(1, 0, 1), Version.create(2, 3), null);
+                Version.create(1, 0, 2), Version.create(2, 3, 3), null);
     }
 
     @Override

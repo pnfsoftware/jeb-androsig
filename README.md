@@ -8,6 +8,12 @@ Minimum JEB version: [2.3 Pro](https://www.pnfsoftware.com/jeb2/)
 
 Tutorial on how to use: [Blog post](https://www.pnfsoftware.com/blog/jeb-library-code-matching-for-android/)
 
+## Building from Source
+
+Use the provided build.xml to build both plugins (packaged in a single JAR); make ure that the plugin version number 'x.y.z' in AndroidSigApplyPlugin matches the one in AndroidSigGenPlugin, and specify it on the command line.
+
+`$ ant -Dversion=x.y.z`
+
 ## Components
 
 ### Android Signature Generator plugin

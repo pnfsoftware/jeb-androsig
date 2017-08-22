@@ -156,7 +156,7 @@ public class Signature {
     }
 
     private boolean loadHashCodes(File sigFile) {
-        List<String> lines = IO.readLines(sigFile, Charset.forName("UTF-8"));
+        List<String> lines = IO.readLinesSafe(sigFile, Charset.forName("UTF-8"));
         if(lines == null) {
             return false;
         }
@@ -233,7 +233,7 @@ public class Signature {
         String libname = "Unknown library code";
         String author = "Unknown author";
         
-        List<String> lines = IO.readLines(sigFile, Charset.forName("UTF-8"));
+        List<String> lines = IO.readLinesSafe(sigFile, Charset.forName("UTF-8"));
         if(lines == null) {
             return false;
         }
