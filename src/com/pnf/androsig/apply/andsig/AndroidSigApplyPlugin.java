@@ -35,6 +35,7 @@ import com.pnf.androsig.apply.model.StructureInfo;
 import com.pnf.androsig.apply.model.Signature;
 import com.pnf.androsig.apply.util.MetadataGroupHandler;
 import com.pnf.androsig.apply.util.ReportHandler;
+import com.pnf.androsig.common.AndroSigCommon;
 import com.pnf.androsig.common.SignatureHandler;
 import com.pnfsoftware.jeb.core.IEnginesContext;
 import com.pnfsoftware.jeb.core.IEnginesPlugin;
@@ -75,7 +76,7 @@ public class AndroidSigApplyPlugin implements IEnginesPlugin {
     public IPluginInformation getPluginInformation() {
         return new PluginInformation("Android Code Recognition",
                 "Apply code signatures to identify Android libraries", "PNF Software",
-                Version.create(1, 0, 2), Version.create(2, 3, 3), null);
+                AndroSigCommon.VERSION, Version.create(2, 3, 3), null);
     }
 
     @Override

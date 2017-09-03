@@ -643,9 +643,12 @@ public class StructureInfo {
             return;
         }
         for(Map.Entry<Integer, String> eClass: matchedClasses.entrySet()) {
-            String packagePath = eClass.getValue().substring(0, eClass.getValue().lastIndexOf("/")) + ";";
-            StructureHandler.createPackage(unit, packagePath);
-            StructureHandler.moveClass(unit, packagePath, unit.getClass(eClass.getKey()).getItemId());
+            int lastSlash = eClass.getValue().lastIndexOf("/");
+            if(lastSlash >= 0) {
+                String packagePath = eClass.getValue().substring(0, lastSlash) + ";";
+                StructureHandler.createPackage(unit, packagePath);
+                StructureHandler.moveClass(unit, packagePath, unit.getClass(eClass.getKey()).getItemId());
+            }
         }
     }
 
