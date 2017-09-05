@@ -6,11 +6,13 @@ The purpose of this plugin is to help deobfuscate obfuscated applications. Using
 
 Minimum JEB version: [2.3 Pro](https://www.pnfsoftware.com/jeb2/)
 
-Tutorial on how to use: [Blog post](https://www.pnfsoftware.com/blog/jeb-library-code-matching-for-android/)
+Tutorial on how to use: [Blog post](https://www.pnfsoftware.com/blog/jeb-library-code-matching-for-android/) (important read)
+
+Remember to download a signatures bundle for common libraries, eg [this one](http://jebdecompiler2.s3.amazonaws.com/androsig_db_20160901.zip), as instructed in the tutorial linked.
 
 ## Building from Source
 
-Use the provided build.xml to build both plugins (packaged in a single JAR); make ure that the plugin version number 'x.y.z' in AndroidSigApplyPlugin matches the one in AndroidSigGenPlugin, and specify it on the command line.
+Use the provided build.xml to build both plugins (packaged in a single JAR); the version number 'x.y.z' is located in AndroSigCommon. Build using the following ant command:
 
 `$ ant -Dversion=x.y.z`
 
@@ -48,21 +50,21 @@ Please make sure all your signature files are in the `[JEB_FOLDER]/coreplugins/a
 
 ## Result
 
-After running signature recognizer plugin, two files will be generated on Desktop:
+After running signature recognizer plugin, two files will be generated in your TEMP folder:
 
-* `mapping.txt`: a mapping file shows the original class, method names mapped to the obfuscated names.
-* `report.txt`: provides the comprehensive information about the matching.
+* `androsig-mapping.txt`: a mapping file shows the original class, method names mapped to the obfuscated names.
+* `androsig-report.txt`: provides the comprehensive information about the matching.
 
 ## Copyright and License
 
 JEB Copyright PNF Software, Inc.
 
-*     https://www.pnfsoftware.com
+https://www.pnfsoftware.com
 
 Licensed under the Apache License, Version 2.0 (the "License");
 You may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-*     http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
