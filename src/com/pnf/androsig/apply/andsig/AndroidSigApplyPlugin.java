@@ -151,8 +151,16 @@ public class AndroidSigApplyPlugin implements IEnginesPlugin {
             }
         }
 
+        File sigFolder;
+        try {
+            sigFolder = SignatureHandler.getSignaturesFolder(context);
+        }
+        catch(IOException ex) {
+            throw new RuntimeException(ex);
+        }
+
         // Load all hashcodes
-        sig.loadAllHashCodes(SignatureHandler.getSignaturesFolder(context));
+        sig.loadAllHashCodes(sigFolder);
 
         List<IDexUnit> dexlist = RuntimeProjectUtil.findUnitsByType(prj, IDexUnit.class, false);
         for(IDexUnit dex: dexlist) {

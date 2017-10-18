@@ -19,6 +19,7 @@
 package com.pnf.androsig.gen;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -143,7 +144,13 @@ public class AndroidSigGenPlugin implements IEnginesPlugin {
         }
 
         if(methodCount >= 1) {
-            File sigFolder = SignatureHandler.getSignaturesFolder(engctx);
+            File sigFolder;
+            try {
+                sigFolder = SignatureHandler.getSignaturesFolder(engctx);
+            }
+            catch(IOException ex) {
+                throw new RuntimeException(ex);
+            }
 
             File f = new File(sigFolder, sanitizeFilename(libname) + ".sig");
             logger.info("Saving signatures to file: %s", f);

@@ -1,6 +1,7 @@
 package com.pnf.androsig.common;
 
 import java.io.File;
+import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
@@ -194,9 +195,22 @@ public class SignatureHandler {
      * 
      * @param engctx engine context
      * @return Signature folder File Object
+     * @throws IOException
      */
-    public static File getSignaturesFolder(IEnginesContext engctx) {
+    public static File getSignaturesFolder(IEnginesContext engctx) throws IOException {
         String pluginFolderPath = engctx.getDataProvider().getPluginStore().getStoreLocation();
-        return new File(pluginFolderPath, "android_sigs");
+        if(pluginFolderPath == null) {
+            throw new IOException("Cannot retrieve the plugins folder!");
+        }
+        File dir = new File(pluginFolderPath, "android_sigs");
+        if(!dir.exists()) {
+            if(!dir.mkdirs()) {
+                throw new IOException("Cannot create the Android Signatures folder: " + dir.getPath());
+            }
+        }
+        else if(!dir.isDirectory()) {
+            throw new IOException("The Android Signatures folder location is occupied: " + dir.getPath());
+        }
+        return dir;
     }
 }
