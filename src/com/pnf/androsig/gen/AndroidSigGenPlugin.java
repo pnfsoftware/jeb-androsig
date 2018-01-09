@@ -80,7 +80,7 @@ public class AndroidSigGenPlugin implements IEnginesPlugin {
     public IPluginInformation getPluginInformation() {
         return new PluginInformation("Android Code Signature Generator",
                 "Generate generic signatures to identify Android libraries", "PNF Software",
-                AndroSigCommon.VERSION, Version.create(2, 3, 3), null);
+                AndroSigCommon.VERSION, Version.create(2, 3, 7));
     }
 
     @Override
@@ -90,6 +90,10 @@ public class AndroidSigGenPlugin implements IEnginesPlugin {
 
     @Override
     public void dispose() {
+    }
+
+    @Override
+    public void load(IEnginesContext arg0) {
     }
 
     @Override
