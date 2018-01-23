@@ -10,5 +10,5 @@ import com.pnfsoftware.jeb.core.Version;
  */
 public class AndroSigCommon {
 
-    public static final Version VERSION = Version.create(1, 0, 5);
+    public static final Version VERSION = Version.create(1, 0, 6);
 }

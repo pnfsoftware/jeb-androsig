@@ -219,7 +219,8 @@ public class Signature {
         for(List<String[]> e : allLooseSignatures.values()) {
             b += e.size();
         }
-        long c = (a + b) / (allTightSignatures.size() + allLooseSignatures.size());
+        int allSigCount = allTightSignatures.size() + allLooseSignatures.size();
+        long c = allSigCount == 0 ? -1: (a + b) / allSigCount;
         logger.info("Average candidates: " + c);
         
         logger.info("allTightSignatures map size: " + allTightSignatures.size());

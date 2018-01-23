@@ -49,6 +49,7 @@ import com.pnfsoftware.jeb.core.Version;
 import com.pnfsoftware.jeb.core.events.J;
 import com.pnfsoftware.jeb.core.events.JebEvent;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
+import com.pnfsoftware.jeb.util.format.Formatter;
 import com.pnfsoftware.jeb.util.format.Strings;
 import com.pnfsoftware.jeb.util.logging.GlobalLog;
 import com.pnfsoftware.jeb.util.logging.ILogger;
@@ -136,7 +137,13 @@ public class AndroidSigApplyPlugin implements IEnginesPlugin {
             struInfo.methodSizeBar = 6;
         }
         else {
-            struInfo.methodSizeBar = Integer.parseInt(methodSizeBar);
+            try {
+                struInfo.methodSizeBar = Integer.parseInt(methodSizeBar);
+            }
+            catch(NumberFormatException e) {
+                logger.warn("Illegal methodSizeBar parameter: \"%s\" (must be an integer)", Formatter.escapeString(methodSizeBar));
+                struInfo.methodSizeBar = -1;
+            }
             if(struInfo.methodSizeBar < 0) {
                 struInfo.methodSizeBar = 6;
             }
