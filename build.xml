@@ -26,7 +26,7 @@ Customize the outfile, entryclass, extcp_build, and extcp_manifest properties.
     <property environment="env"/>
     <echo message="JEB_HOME: ${env.JEB_HOME}"/>
 
-    <property name="jebjar" value="${env.JEB_HOME}/bin/cl/jeb.jar"/>
+    <property name="jebjar" value="${env.JEB_HOME}/bin/app/jeb.jar"/>
     <echo message="JEB Core expected at location: ${jebjar}"/>
 
     <fail message="Please set JEB_HOME environment variable to point to your JEB installation folder">

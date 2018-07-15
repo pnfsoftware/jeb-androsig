@@ -29,8 +29,8 @@ import java.util.Map;
 import com.pnf.androsig.common.AndroSigCommon;
 import com.pnf.androsig.common.SignatureHandler;
 import com.pnfsoftware.jeb.client.Licensing;
+import com.pnfsoftware.jeb.core.AbstractEnginesPlugin;
 import com.pnfsoftware.jeb.core.IEnginesContext;
-import com.pnfsoftware.jeb.core.IEnginesPlugin;
 import com.pnfsoftware.jeb.core.IOptionDefinition;
 import com.pnfsoftware.jeb.core.IPluginInformation;
 import com.pnfsoftware.jeb.core.IRuntimeProject;
@@ -69,7 +69,7 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
  * 
  * @author Ruoxiao Wang
  */
-public class AndroidSigGenPlugin implements IEnginesPlugin {
+public class AndroidSigGenPlugin extends AbstractEnginesPlugin {
     private static final ILogger logger = GlobalLog.getLogger(AndroidSigGenPlugin.class);
 
     private static final int androidSigFileVersion = 1;

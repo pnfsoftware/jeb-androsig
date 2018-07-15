@@ -37,8 +37,8 @@ import com.pnf.androsig.apply.util.MetadataGroupHandler;
 import com.pnf.androsig.apply.util.ReportHandler;
 import com.pnf.androsig.common.AndroSigCommon;
 import com.pnf.androsig.common.SignatureHandler;
+import com.pnfsoftware.jeb.core.AbstractEnginesPlugin;
 import com.pnfsoftware.jeb.core.IEnginesContext;
-import com.pnfsoftware.jeb.core.IEnginesPlugin;
 import com.pnfsoftware.jeb.core.IOptionDefinition;
 import com.pnfsoftware.jeb.core.IPluginInformation;
 import com.pnfsoftware.jeb.core.IRuntimeProject;
@@ -67,7 +67,7 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
  * @author Ruoxiao Wang
  */
 
-public class AndroidSigApplyPlugin implements IEnginesPlugin {
+public class AndroidSigApplyPlugin extends AbstractEnginesPlugin {
     private final ILogger logger = GlobalLog.getLogger(AndroidSigApplyPlugin.class);
 
     // Debug
