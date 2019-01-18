@@ -1,27 +1,22 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--===============================================================================================
+Ant build file to build and package the JEB plugin.
+Requirements:
+- JEB 3.0.7 or above
+- Set up the JEB_HOME environment variable to point to your JEB installation folder.
+- Customize the outfile, entryclass, extcp_build, and extcp_manifest properties.
+================================================================================================-->
 
-<!--===========================================================================
+<project basedir=".." default="build" name="jebplugin">
 
-Sample Ant build file used to build and package a JEB2 plugin
-
-Requirements: set up the JEB_HOME environment variable to point to your
-JEB2 installation folder.
-
-Customize the outfile, entryclass, extcp_build, and extcp_manifest properties.
-
-============================================================================-->
-
-<project basedir="." default="build" name="jebsigplugin">
-
-    <fail message="Set the plugin version number: ant -Dversion=x.y.z">
+    <fail message="Set the plugin version number: -DpluginVersion=x.y.z">
       <condition>
         <not>
-          <isset property="version"/>
+          <isset property="pluginVersion"/>
         </not>
       </condition>
     </fail>
-
-    <echo message="Plugin version: ${version}"/>
+    <echo message="Plugin version: ${pluginVersion}"/>
 
     <property environment="env"/>
     <echo message="JEB_HOME: ${env.JEB_HOME}"/>
@@ -29,7 +24,7 @@ Customize the outfile, entryclass, extcp_build, and extcp_manifest properties.
     <property name="jebjar" value="${env.JEB_HOME}/bin/app/jeb.jar"/>
     <echo message="JEB Core expected at location: ${jebjar}"/>
 
-    <fail message="Please set JEB_HOME environment variable to point to your JEB installation folder">
+    <fail message="Please set the JEB_HOME environment variable to point to your JEB installation folder">
       <condition>
         <not>
           <available file="${jebjar}"/>
@@ -38,12 +33,13 @@ Customize the outfile, entryclass, extcp_build, and extcp_manifest properties.
     </fail>
 
     <property name="debuglevel" value="source,lines,vars"/>
-    <property name="target" value="1.7"/>
-    <property name="source" value="1.7"/>
+    <property name="target" value="1.8"/>
+    <property name="source" value="1.8"/>
 
-    <property name="outfile" value="out/JebAndroidSigPlugin-${version}.jar"/>
-    <property name="entryclass" value="com.pnf.androsig.gen.AndroidSigGenPlugin com.pnf.androsig.apply.andsig.AndroidSigApplyPlugin"/>
-
+    <!-- Mandatory properties -->
+    <property name="src" value="src"/>
+    <property name="outfile" value="out/${pluginFilename}-${pluginVersion}.jar"/>
+    <property name="entryclass" value="${pluginClassname}"/>
     <!-- External libraries, for build process (semi-colon separated) -->
     <property name="extcp_build" value=""/>
     <!-- External libraries, for Manifest (space separated) -->
@@ -61,7 +57,7 @@ Customize the outfile, entryclass, extcp_build, and extcp_manifest properties.
         <delete dir="bin"/>
         <mkdir dir="bin"/>
         <javac debug="true" debuglevel="${debuglevel}" destdir="bin" includeantruntime="false" source="${source}" target="${target}" encoding="UTF-8">
-            <src path="src"/>
+            <src path="${src}"/>
             <classpath>
                 <pathelement location="${jebjar}"/>
                 <pathelement path="${extcp_build}"/>
@@ -75,7 +71,7 @@ Customize the outfile, entryclass, extcp_build, and extcp_manifest properties.
             <compilerclasspath>
                 <pathelement location="../jeb2-common/errorprone.jar"/>
             </compilerclasspath>
-            <src path="src"/>
+            <src path="${src}"/>
             <classpath>
                 <pathelement location="${jebjar}"/>
                 <pathelement path="${extcp_build}"/>
@@ -89,11 +85,11 @@ Customize the outfile, entryclass, extcp_build, and extcp_manifest properties.
             <manifest>
                 <attribute name="Class-Path" value="${extcp_manifest}"/>
                 <attribute name="JebPlugin-entryclass" value="${entryclass}"/>
-                <attribute name="JebPlugin-version" value="${version}"/>
+                <attribute name="JebPlugin-version" value="${pluginVersion}"/>
             </manifest>
             <fileset dir="bin"/>
             <!-- copy resources -->
-            <fileset dir="src" excludes="**/*.java"/>
+            <fileset dir="${src}" excludes="**/*.java"/>
             <fileset dir="." includes="README.md"/>
         </jar>
     </target>

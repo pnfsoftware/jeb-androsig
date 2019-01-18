@@ -19,7 +19,7 @@ public class StructureHandler {
     public static void rename(IDexUnit unit, String newName, long itemId) {
         ActionRenameData data = new ActionRenameData();
         data.setNewName(newName);
-        ActionContext action = new ActionContext(unit, Actions.RENAME, itemId, null);
+        ActionContext action = new ActionContext(unit, Actions.RENAME, itemId);
         if(unit.prepareExecution(action, data)) {
             unit.executeAction(action, data, false);
         }
@@ -36,7 +36,7 @@ public class StructureHandler {
         String processedPath = packagePath.substring(1, packagePath.length() - 1).replace("/", ".");
         ActionMoveToPackageData data = new ActionMoveToPackageData();
         data.setDstPackageFqname(processedPath);
-        ActionContext action = new ActionContext(unit, Actions.MOVE_TO_PACKAGE, itemId, null);
+        ActionContext action = new ActionContext(unit, Actions.MOVE_TO_PACKAGE, itemId);
         if(unit.prepareExecution(action, data)) {
             unit.executeAction(action, data, false);
         }
@@ -52,7 +52,7 @@ public class StructureHandler {
         String processedPath = packagePath.substring(1, packagePath.length() - 1).replace("/", ".");
         ActionCreatePackageData data = new ActionCreatePackageData();
         data.setFqname(processedPath);
-        ActionContext action = new ActionContext(unit, Actions.CREATE_PACKAGE, 0, null);
+        ActionContext action = new ActionContext(unit, Actions.CREATE_PACKAGE, 0);
         if(unit.prepareExecution(action, data)) {
             unit.executeAction(action, data, false);
         }

@@ -12,9 +12,7 @@ Remember to download a signatures bundle for common libraries, eg [this one](htt
 
 ## Building from Source
 
-Use the provided build.xml to build both plugins (packaged in a single JAR); the version number 'x.y.z' is located in AndroSigCommon. Build using the following ant command:
-
-`$ ant -Dversion=x.y.z`
+Use the provided build-xxx script to build both plugins (packaged in a single JAR); the version number 'x.y.z' is located in AndroSigCommon. Update the version number in the script file before building.
 
 ## Components
 

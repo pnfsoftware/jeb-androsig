@@ -77,7 +77,7 @@ public class AndroidSigApplyPlugin extends AbstractEnginesPlugin {
     public IPluginInformation getPluginInformation() {
         return new PluginInformation("Android Code Recognition",
                 "Apply code signatures to identify Android libraries", "PNF Software",
-                AndroSigCommon.VERSION, Version.create(2, 3, 7));
+                AndroSigCommon.VERSION, Version.create(3, 0, 9));
     }
 
     @Override

@@ -80,7 +80,7 @@ public class AndroidSigGenPlugin extends AbstractEnginesPlugin {
     public IPluginInformation getPluginInformation() {
         return new PluginInformation("Android Code Signature Generator",
                 "Generate generic signatures to identify Android libraries", "PNF Software",
-                AndroSigCommon.VERSION, Version.create(2, 3, 7));
+                AndroSigCommon.VERSION, Version.create(3, 0, 9));
     }
 
     @Override
