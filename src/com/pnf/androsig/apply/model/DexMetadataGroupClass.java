@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.pnfsoftware.jeb.core.output.AddressConversionPrecision;
 import com.pnfsoftware.jeb.core.units.MetadataGroup;
 import com.pnfsoftware.jeb.core.units.MetadataGroupType;
 
@@ -57,10 +58,11 @@ public class DexMetadataGroupClass extends MetadataGroup {
      * Get the piece of metadata associated with the provided address.
      * 
      * @param address address
+     * @param precision
      * @return the data at address, null if none
      */
     @Override
-    public Object getData(String address) {
+    public Object getData(String address, AddressConversionPrecision precision) {
         if(address == null) {
             return null;
         }
