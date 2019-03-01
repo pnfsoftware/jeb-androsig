@@ -39,6 +39,7 @@ import com.pnfsoftware.jeb.util.logging.GlobalLog;
 import com.pnfsoftware.jeb.util.logging.ILogger;
 
 /**
+ * TODO This class will be removed<br>
  * The class contains all information about the signatures.
  * 
  * @author Ruoxiao Wang
@@ -47,26 +48,19 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
 public class Signature {
     private final ILogger logger = GlobalLog.getLogger(Signature.class);
 
-    private Map<String, String> allTightHashcodes;
-    private Map<String, String> allLooseHashcodes;
-
     private Map<String, List<String[]>> allTightSignatures;
     private Map<String, List<String[]>> allLooseSignatures;
-    
+
     private Map<String, LibraryInfo> allLibraryInfos;
 
     // Record
     private int allSignatureCount = 0;
-    private int allSignatureFileCount = 0;
     private int allUsedSignatureFileCount = 0;
 
     public Signature() {
-        allTightHashcodes = new HashMap<>();
-        allLooseHashcodes = new HashMap<>();
-
         allTightSignatures = new HashMap<>();
         allLooseSignatures = new HashMap<>();
-        
+
         allLibraryInfos = new HashMap<>();
     }
 
@@ -77,15 +71,6 @@ public class Signature {
      */
     public int getAllSignatureCount() {
         return allSignatureCount;
-    }
-
-    /**
-     * Get the number of signature files.
-     * 
-     * @return the number of signature files
-     */
-    public int getAllSignatureFileCount() {
-        return allSignatureFileCount;
     }
 
     /**
@@ -116,7 +101,7 @@ public class Signature {
     public Map<String, List<String[]>> getAllLooseSignatures() {
         return allLooseSignatures;
     }
- 
+
     /**
      * Get all library information.
      * 
@@ -127,73 +112,16 @@ public class Signature {
     }
 
     /**
-     * Load all hashcodes from signature files.
-     * 
-     * @param sigFolder the signature folder
-     */
-    public void loadAllHashCodes(File sigFolder) {
-        logger.info("Hashcodes loading start...");
-        final long startTime = System.currentTimeMillis();
-        loadAllHashCodesTemp(sigFolder);
-        final long endTime = System.currentTimeMillis();
-        logger.info("Hashcodes loading completed! (Execution Time: " + (endTime - startTime) / 1000 + "s)");
-        logger.info("allTightHashcodes: " + allTightHashcodes.size());
-        logger.info("allLooseHashcodes: " + allLooseHashcodes.size());
-    }
-
-    private void loadAllHashCodesTemp(File sigFolder) {
-        for(File f: sigFolder.listFiles()) {
-            if(f.isFile() && f.getName().endsWith(".sig")) {
-                allSignatureFileCount++;
-                if(!loadHashCodes(f)) {
-                    logger.error("Cannot load signatures files: %s", f);
-                }
-            }
-            else if(f.isDirectory()) {
-                loadAllHashCodesTemp(f);
-            }
-        }
-    }
-
-    private boolean loadHashCodes(File sigFile) {
-        List<String> lines = IO.readLinesSafe(sigFile, Charset.forName("UTF-8"));
-        if(lines == null) {
-            return false;
-        }
-
-        for(String line: lines) {
-            line = line.trim();
-            if(line.isEmpty() || line.startsWith(";")) {
-                continue;
-            }
-
-            String[] subLines = line.trim().split(",");
-            if(subLines.length != 8) {
-                logger.info("Invalid parameter signature line");
-                continue;
-            }
-
-            if(subLines[5] != null && !allTightHashcodes.containsKey(subLines[4])) {
-                allTightHashcodes.put(subLines[5], sigFile.getAbsolutePath());
-            }
-            if(subLines[6] != null && !allLooseHashcodes.containsKey(subLines[5])) {
-                allLooseHashcodes.put(subLines[6], sigFile.getAbsolutePath());
-            }
-        }
-        return true;
-    }
-
-    /**
      * Load all signatures.
      * 
      * @param unit mandatory target unit
      */
-    public void loadAllSignatures(IDexUnit unit) {
+    public void loadAllSignatures(IDexUnit unit, DatabaseReference ref) {
         // Store all used signature files
         logger.info("Used Sig Files storing start...");
         final long startTime = System.currentTimeMillis();
         Set<String> usedSigFiles = new HashSet<>();
-        storeAllUsedSigFiles(unit, usedSigFiles);
+        storeAllUsedSigFiles(unit, usedSigFiles, ref);
         final long endTime = System.currentTimeMillis();
         logger.info("Used Sig Files storing completed! (Execution Time: " + (endTime - startTime) / 1000 + "s)");
 
@@ -212,17 +140,17 @@ public class Signature {
         allUsedSignatureFileCount = usedSigFiles.size();
         usedSigFiles.clear();
         long a = 0;
-        for(List<String[]> e : allTightSignatures.values()) {
+        for(List<String[]> e: allTightSignatures.values()) {
             a += e.size();
         }
         long b = 0;
-        for(List<String[]> e : allLooseSignatures.values()) {
+        for(List<String[]> e: allLooseSignatures.values()) {
             b += e.size();
         }
         int allSigCount = allTightSignatures.size() + allLooseSignatures.size();
         long c = allSigCount == 0 ? -1: (a + b) / allSigCount;
         logger.info("Average candidates: " + c);
-        
+
         logger.info("allTightSignatures map size: " + allTightSignatures.size());
         logger.info("candidates: " + a);
         logger.info("allLooseSignatures map size: " + allLooseSignatures.size());
@@ -233,7 +161,7 @@ public class Signature {
         int version = 0;
         String libname = "Unknown library code";
         String author = "Unknown author";
-        
+
         List<String> lines = IO.readLinesSafe(sigFile, Charset.forName("UTF-8"));
         if(lines == null) {
             return false;
@@ -242,13 +170,13 @@ public class Signature {
         List<SigDefLine> mllist = new ArrayList<>();
         // Store library information
         LibraryInfo libraryInfo = new LibraryInfo();
-        
+
         for(String line: lines) {
             line = line.trim();
             if(line.isEmpty()) {
                 continue;
             }
-            
+
             if(line.startsWith(";")) {
                 line = line.substring(1);
 
@@ -263,7 +191,7 @@ public class Signature {
                     libname = value;
                     libraryInfo.setLibName(libname);
                 }
-                
+
                 value = checkMarker(line, "author");
                 if(value != null) {
                     author = value;
@@ -271,7 +199,7 @@ public class Signature {
                 }
                 continue;
             }
-            
+
             SigDefLine ml = new SigDefLine();
             ml = ml.parse(line);
             if(ml == null) {
@@ -286,12 +214,12 @@ public class Signature {
 
         // store method signatures
         for(SigDefLine ml: mllist) {
-            storeMethodHash(ml.getMhash_loose(), ml.getMhash_tight(), ml.getCname(), ml.getMname(), ml.getShorty(), ml.getPrototype(),
-                    ml.getCaller());
+            storeMethodHash(ml.getMhash_loose(), ml.getMhash_tight(), ml.getCname(), ml.getMname(), ml.getShorty(),
+                    ml.getPrototype(), ml.getCaller());
         }
         return true;
     }
-    
+
     private String checkMarker(String line, String marker) {
         if(line.startsWith(marker + "=")) {
             return line.substring(marker.length() + 1).trim();
@@ -299,8 +227,8 @@ public class Signature {
         return null;
     }
 
-    private void storeMethodHash(String mhash_loose, String mhash_tight, String cname, String mname, String shorty, String prototype,
-            String caller) {
+    private void storeMethodHash(String mhash_loose, String mhash_tight, String cname, String mname, String shorty,
+            String prototype, String caller) {
         String[] sigs = new String[]{cname, mname, shorty, prototype, caller};
         if(!allTightSignatures.containsKey(mhash_tight)) {
             allTightSignatures.put(mhash_tight, new ArrayList<String[]>());
@@ -312,7 +240,7 @@ public class Signature {
         allLooseSignatures.get(mhash_loose).add(sigs);
     }
 
-    private void storeAllUsedSigFiles(IDexUnit dex, Set<String> usedSigFiles) {
+    private void storeAllUsedSigFiles(IDexUnit dex, Set<String> usedSigFiles, DatabaseReference ref) {
         List<? extends IDexClass> classes = dex.getClasses();
         if(classes == null || classes.size() == 0) {
             return;
@@ -343,8 +271,8 @@ public class Signature {
                         tightFlag = false;
                     }
                     if(tightFlag) {
-                        if(allTightHashcodes.containsKey(mhash_tight)) {
-                            usedSigFiles.add(allTightHashcodes.get(mhash_tight));
+                        if(ref.allTightHashcodes.containsKey(mhash_tight)) {
+                            usedSigFiles.add(ref.allTightHashcodes.get(mhash_tight).get(0));
                             looseFlag = false;
                         }
                     }
@@ -353,14 +281,12 @@ public class Signature {
                         if(mhash_loose == null) {
                             continue;
                         }
-                        if(allLooseHashcodes.containsKey(mhash_loose)) {
-                            usedSigFiles.add(allLooseHashcodes.get(mhash_loose));
+                        if(ref.allLooseHashcodes.containsKey(mhash_loose)) {
+                            usedSigFiles.add(ref.allLooseHashcodes.get(mhash_loose).get(0));
                         }
                     }
                 }
             }
         }
-        allLooseHashcodes = null;
-        allTightHashcodes = null;
     }
 }

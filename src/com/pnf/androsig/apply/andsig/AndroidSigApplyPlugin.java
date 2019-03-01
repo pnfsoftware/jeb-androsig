@@ -32,6 +32,8 @@ import java.util.Map;
 import java.util.Set;
 
 import com.pnf.androsig.apply.model.StructureInfo;
+import com.pnf.androsig.apply.model.DatabaseReference;
+import com.pnf.androsig.apply.model.DexHashcodeList;
 import com.pnf.androsig.apply.model.Signature;
 import com.pnf.androsig.apply.util.MetadataGroupHandler;
 import com.pnf.androsig.apply.util.ReportHandler;
@@ -77,7 +79,7 @@ public class AndroidSigApplyPlugin extends AbstractEnginesPlugin {
     public IPluginInformation getPluginInformation() {
         return new PluginInformation("Android Code Recognition",
                 "Apply code signatures to identify Android libraries", "PNF Software",
-                AndroSigCommon.VERSION, Version.create(3, 0, 9));
+                AndroSigCommon.VERSION, Version.create(3, 1, 0));
     }
 
     @Override
@@ -129,36 +131,41 @@ public class AndroidSigApplyPlugin extends AbstractEnginesPlugin {
             return;
         }
 
+        DatabaseReference ref = new DatabaseReference();
         Signature sig = new Signature();
         StructureInfo struInfo = new StructureInfo();
 
         String methodSizeBar = executionOptions.get("methodSizeBar");
-        if(Strings.isBlank(methodSizeBar)) {
-            struInfo.methodSizeBar = 6;
-        }
-        else {
+        int methodSizeBarInt = 6;
+        if(!Strings.isBlank(methodSizeBar)) {
             try {
-                struInfo.methodSizeBar = Integer.parseInt(methodSizeBar);
+                methodSizeBarInt = Integer.parseInt(methodSizeBar);
             }
             catch(NumberFormatException e) {
-                logger.warn("Illegal methodSizeBar parameter: \"%s\" (must be an integer)", Formatter.escapeString(methodSizeBar));
-                struInfo.methodSizeBar = -1;
+                logger.warn("Illegal methodSizeBar parameter: \"%s\" (must be an integer)",
+                        Formatter.escapeString(methodSizeBar));
             }
-            if(struInfo.methodSizeBar < 0) {
-                struInfo.methodSizeBar = 6;
+            if(methodSizeBarInt < 0) {
+                methodSizeBarInt = 6;
             }
         }
+        struInfo.getDbMatcher().methodSizeBar = methodSizeBarInt;
 
         String matchedInstusPercentageBar = executionOptions.get("matchedInstusPercentageBar");
-        if(Strings.isBlank(matchedInstusPercentageBar)) {
-            struInfo.matchedInstusPercentageBar = 0.5;
-        }
-        else {
-            struInfo.matchedInstusPercentageBar = Double.parseDouble(matchedInstusPercentageBar);
-            if(struInfo.matchedInstusPercentageBar < 0.0 || struInfo.matchedInstusPercentageBar > 1.0) {
-                struInfo.matchedInstusPercentageBar = 0.5;
+        Double matchedInstusPercentageBarDbl = 0.5;
+        if(!Strings.isBlank(matchedInstusPercentageBar)) {
+            try {
+                matchedInstusPercentageBarDbl = Double.parseDouble(matchedInstusPercentageBar);
+            }
+            catch(NumberFormatException e) {
+                logger.warn("Illegal matchedInstusPercentageBar parameter: \"%s\" (must be a double)",
+                        Formatter.escapeString(matchedInstusPercentageBar));
+            }
+            if(matchedInstusPercentageBarDbl < 0.0 || matchedInstusPercentageBarDbl > 1.0) {
+                matchedInstusPercentageBarDbl = 0.5;
             }
         }
+        struInfo.getDbMatcher().matchedInstusPercentageBar = matchedInstusPercentageBarDbl;
 
         File sigFolder;
         try {
@@ -169,20 +176,21 @@ public class AndroidSigApplyPlugin extends AbstractEnginesPlugin {
         }
 
         // Load all hashcodes
-        sig.loadAllHashCodes(sigFolder);
+        ref.loadAllHashCodes(sigFolder);
 
         List<IDexUnit> dexlist = RuntimeProjectUtil.findUnitsByType(prj, IDexUnit.class, false);
         for(IDexUnit dex: dexlist) {
             // Load all signatures
-            sig.loadAllSignatures(dex);
-            struInfo.loadAPKHashcodes(dex);
+            sig.loadAllSignatures(dex, ref);
+            DexHashcodeList dexHashCodeList = new DexHashcodeList();
+            dexHashCodeList.loadAPKHashcodes(dex);
 
             // Create MetadataGroup
             MetadataGroupHandler.createCodeGroupMethod(dex, struInfo);
             MetadataGroupHandler.createCodeGroupClass(dex, struInfo);
 
             // Apply signature
-            struInfo.rebuildStructure(dex, sig);
+            struInfo.rebuildStructure(dex, sig, dexHashCodeList);
 
             if(Thread.currentThread().isInterrupted()) {
                 logger.info("Tread Interrupted!");
@@ -192,7 +200,7 @@ public class AndroidSigApplyPlugin extends AbstractEnginesPlugin {
             // Notify system
             dex.notifyListeners(new JebEvent(J.UnitChange));
             // Output result
-            ReportHandler.generateRecord(dex, struInfo, sig);
+            ReportHandler.generateRecord(dex, struInfo, sig, ref);
 
             /************* For testing *************/
             //ReportHandler.serializeReport(dex, struInfo);
@@ -221,8 +229,8 @@ public class AndroidSigApplyPlugin extends AbstractEnginesPlugin {
      */
     @SuppressWarnings("unused")
     private void generatePaper(IDexUnit unit) {
-        Map<String, String> map = new HashMap<String, String>();
-        Set<String> set = new HashSet<String>();
+        Map<String, String> map = new HashMap<>();
+        Set<String> set = new HashSet<>();
         String desktopPath = System.getProperty("user.home") + "/Desktop";
         File classMapping = new File(desktopPath + "/classMapping.txt");
         File mapping = new File(desktopPath + "/mapping.txt");

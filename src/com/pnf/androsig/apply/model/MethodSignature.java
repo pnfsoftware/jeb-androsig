@@ -18,6 +18,7 @@
 
 package com.pnf.androsig.apply.model;
 
+import com.pnf.androsig.common.SignatureHandler;
 import com.pnfsoftware.jeb.util.encoding.Conversion;
 
 /**
@@ -26,7 +27,7 @@ import com.pnfsoftware.jeb.util.encoding.Conversion;
  * @author Ruoxiao Wang
  *
  */
-public class SigDefLine {
+public class MethodSignature {
     private String cname;
     private String mname;
     private String shorty;
@@ -115,13 +116,13 @@ public class SigDefLine {
      * @return MethodLine Object (contains class path, method name, shorty, prototype, opcount,
      *         tight signature and loose signature)
      */
-    public SigDefLine parse(String line) {
+    public static MethodSignature parse(String line) {
         String[] tokens = line.trim().split(",");
         if(tokens.length != 8) {
             return null;
         }
 
-        SigDefLine ml = new SigDefLine();
+        MethodSignature ml = new MethodSignature();
         ml.cname = tokens[0];
         if(!ml.cname.startsWith("L") || !ml.cname.endsWith(";")) {
             return null;
@@ -167,5 +168,42 @@ public class SigDefLine {
     public String toString() {
         return String.format("%s,%s,%s,%s,%d,%s,%s,%s", cname, mname, shorty, prototype, opcount, mhash_tight,
                 mhash_loose, caller);
+    }
+
+    /* SET Of LAZY METHODS TO AVOID CREATION OF MethodSignature OBJECT */
+
+    /**
+     * Indicate if line contains signature data.
+     * 
+     * @return true if signature data is detected, false if line is blank or any comment
+     */
+    public static boolean isSignatureLine(String line) {
+        return !line.isEmpty() && !line.startsWith(";");
+    }
+
+    public static String[] parseNative(String line) {
+        String[] tokens = line.trim().split(",");
+        if(tokens.length != 8) {
+            return null;
+        }
+        return tokens;
+    }
+
+    /**
+     * Get exact signature of method. See {@link SignatureHandler} for more details.
+     * 
+     * @return
+     */
+    public static String getTightSignature(String[] signatureLine) {
+        return signatureLine[5];
+    }
+
+    /**
+     * Get loose signature of method. See {@link SignatureHandler} for more details.
+     * 
+     * @return
+     */
+    public static String getLooseSignature(String[] signatureLine) {
+        return signatureLine[6];
     }
 }

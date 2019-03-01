@@ -17,8 +17,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.LibraryInfo;
-import com.pnf.androsig.apply.model.Mapping;
 import com.pnf.androsig.apply.model.Signature;
 import com.pnf.androsig.apply.model.StructureInfo;
 import com.pnfsoftware.jeb.core.units.code.IInstruction;
@@ -37,9 +37,9 @@ public class ReportHandler {
      * @param struInfo StructureInfo Object which contains structure informations
      * @param sig Signature Object which contains signature informations
      */
-    public static void generateRecord(IDexUnit unit, StructureInfo struInfo, Signature sig) {
-        Map<Integer, String> matchedClasses = struInfo.getMatchedClasses();
-        Map<Integer, String> matchedMethods = struInfo.getMatchedMethods();
+    public static void generateRecord(IDexUnit unit, StructureInfo struInfo, Signature sig, DatabaseReference ref) {
+        Map<Integer, String> matchedClasses = struInfo.getDbMatcher().getMatchedClasses();
+        Map<Integer, String> matchedMethods = struInfo.getDbMatcher().getMatchedMethods();
         DecimalFormat df = new DecimalFormat("#.00");
         // Generate mapping file
         File mapping = new File(System.getProperty("java.io.tmpdir"), "androsig-mapping.txt");
@@ -88,13 +88,13 @@ public class ReportHandler {
         }
 
         // Generate report
-        int allSignatureFileCount = sig.getAllSignatureFileCount();
+        int allSignatureFileCount = ref.getAllSignatureFileCount();
         int allSignatureCount =  sig.getAllSignatureCount();
         int allUsedSignatureFileCount = sig.getAllUsedSignatureFileCount();
         int allClassCount = unit.getClasses().size();
-        int allMatchedClassCount = struInfo.getMatchedClasses().size();
+        int allMatchedClassCount = struInfo.getDbMatcher().getMatchedClasses().size();
         String matchedClassCountP = df.format((allMatchedClassCount * 100.0) / allClassCount);
-        int allMatchedMethodCount = struInfo.getMatchedMethods().size();
+        int allMatchedMethodCount = struInfo.getDbMatcher().getMatchedMethods().size();
         int allInterfaceAndEmptyClassCount = getInterfaceAndEmptyClassCount(unit);
         String interfaceAndEmptyClassCountP = df.format((allInterfaceAndEmptyClassCount * 100.0) / allClassCount);
         int allUnmatchedClassCount = allClassCount - allMatchedClassCount - allInterfaceAndEmptyClassCount;
@@ -194,8 +194,8 @@ public class ReportHandler {
         Map<String, String> classMap = mapping.getClassMap();
         Map<String, Map<String, String>> methodMap = mapping.getMethodMap();
         
-        Map<Integer, String> matchedClasses = struInfo.getMatchedClasses();
-        Map<Integer, String> matchedMethods = struInfo.getMatchedMethods();
+        Map<Integer, String> matchedClasses = struInfo.getDbMatcher().getMatchedClasses();
+        Map<Integer, String> matchedMethods = struInfo.getDbMatcher().getMatchedMethods();
         
         List<? extends IDexClass> classes = unit.getClasses();
         if(classes == null || classes.size() == 0) {
