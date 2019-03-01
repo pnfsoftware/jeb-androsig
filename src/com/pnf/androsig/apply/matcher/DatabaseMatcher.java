@@ -3,7 +3,7 @@
  * All rights reserved.
  * This file shall not be distributed or reused, in part or in whole.
  */
-package com.pnf.androsig.apply.model;
+package com.pnf.androsig.apply.matcher;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -11,10 +11,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.Map.Entry;
 
+import com.pnf.androsig.apply.model.DatabaseReference;
+import com.pnf.androsig.apply.model.DexHashcodeList;
 import com.pnfsoftware.jeb.core.units.code.IInstruction;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
@@ -32,12 +34,11 @@ import com.pnfsoftware.jeb.core.units.code.android.dex.IDexPrototype;
  * @author Ruoxiao Wang, Cedric Lucas
  *
  */
-public class DatabaseMatcher {
+class DatabaseMatcher implements IDatabaseMatcher {
 
-    // Parameters
-    public int methodSizeBar = 0; // will skip method if its instruction size is no great than methodSizeBar
-    public double matchedInstusPercentageBar = 0; // will skip the class if (total matched instructions / total instructions) is no greater than matchedMethodsPercentageBar
-
+    private DatabaseMatcherParameters params;
+    private Signature sig;
+    private DatabaseReference ref;
     // class index --- classPath_sig
     private Map<Integer, String> matchedClasses = new HashMap<>();
     // method index --- methodName_sig
@@ -63,17 +64,28 @@ public class DatabaseMatcher {
 
     private Map<Integer, Double> instruCount = new HashMap<>();;
 
-    // TODO remove
     private Map<String, List<String[]>> allTightSignatures;
     private Map<String, List<String[]>> allLooseSignatures;
+
+    public DatabaseMatcher(DatabaseMatcherParameters params, DatabaseReference ref) {
+        this.params = params;
+        this.ref = ref;
+        sig = new Signature();
+    }
 
     private void getSignatures(Signature sig) {
         allLooseSignatures = sig.getAllLooseSignatures();
         allTightSignatures = sig.getAllTightSignatures();
     }
 
-    public void storeMatchedClassesAndMethods(IDexUnit unit, Signature sig, DexHashcodeList dexHashCodeList,
-            boolean firstRound) {
+    @Override
+    public void storeMatchedClassesAndMethods(IDexUnit unit, DexHashcodeList dexHashCodeList, boolean firstRound) {
+
+        if(firstRound) {
+            // Load all signatures
+            sig.loadAllSignatures(unit, ref);
+        }
+
         List<? extends IDexClass> classes = unit.getClasses();
         if(classes == null || classes.size() == 0) {
             return;
@@ -142,7 +154,7 @@ public class DatabaseMatcher {
             }
 
             List<? extends IInstruction> instructions = eMethod.getInstructions();
-            if(instructions == null || instructions.size() <= methodSizeBar) {
+            if(instructions == null || instructions.size() <= params.methodSizeBar) {
                 continue;
             }
 
@@ -411,10 +423,103 @@ public class DatabaseMatcher {
             }
         }
 
-        if(matchedInstrus / totalInstrus <= matchedInstusPercentageBar) {
+        if(matchedInstrus / totalInstrus <= params.matchedInstusPercentageBar) {
             return false;
         }
         return true;
+    }
+
+    @Override
+    public Map<Integer, String> postProcessRenameMethods(IDexUnit unit, DexHashcodeList dexHashCodeList,
+            boolean firstRound) {
+        return renameSmallMethods(unit, dexHashCodeList);
+    }
+
+    @Override
+    public Map<Integer, String> postProcessRenameClasses(IDexUnit unit, DexHashcodeList dexHashCodeList,
+            boolean firstRound) {
+        return new HashMap<>();
+    }
+
+    private Map<Integer, String> renameSmallMethods(IDexUnit unit, DexHashcodeList dexHashCodeList) {
+        Map<String, Integer> map = new HashMap<>();
+        Map<Integer, String> newMatchedMethods = new HashMap<>();
+        TreeMap<Integer, ArrayList<String>> treemap = new TreeMap<>(Collections.reverseOrder());
+        for(int cIndex: matchedClasses.keySet()) {
+            IDexClass eClass = unit.getClass(cIndex);
+            String classPath = eClass.getSignature(true);
+            List<? extends IDexMethod> methods = eClass.getMethods();
+            for(IDexMethod method: methods) {
+                if(matchedMethods.containsKey(method.getIndex())) {
+                    continue;
+                }
+                map.clear();
+                treemap.clear();
+                IDexPrototype proto = unit.getPrototypes().get(method.getPrototypeIndex());
+                String shorty = unit.getStrings().get(proto.getShortyIndex()).getValue();
+                String mhash_tight = dexHashCodeList.getTightHashcode(method);
+                if(mhash_tight == null) {
+                    continue;
+                }
+                List<String[]> sigs = allTightSignatures.get(mhash_tight);
+                String methodName = null;
+                if(sigs != null) {
+                    methodName = findMethodName(map, treemap, sigs, shorty, classPath);
+                }
+                if(methodName == null) {
+                    String mhash_loose = dexHashCodeList.getLooseHashcode(method);
+                    sigs = allLooseSignatures.get(mhash_loose);
+                    if(sigs != null) {
+                        methodName = findMethodName(map, treemap, sigs, shorty, classPath);
+                    }
+                }
+                if(methodName != null) {
+                    newMatchedMethods.put(method.getIndex(), methodName);
+                    matchedMethods.put(method.getIndex(), methodName);
+                }
+            }
+        }
+        return newMatchedMethods;
+    }
+
+    private String findMethodName(Map<String, Integer> map, TreeMap<Integer, ArrayList<String>> treemap,
+            List<String[]> sigs, String shorty, String classPath) {
+        for(String[] strArray: sigs) {
+            if(!strArray[2].equals(shorty)) {
+                continue;
+            }
+            if(!strArray[0].equals(classPath)) {
+                continue;
+            }
+            Integer count = map.get(strArray[1]);
+            if(count == null) {
+                map.put(strArray[1], 1);
+            }
+            else {
+                map.put(strArray[1], count + 1);
+            }
+        }
+        for(Map.Entry<String, Integer> entry: map.entrySet()) {
+            String mName = entry.getKey();
+            int count = entry.getValue();
+            ArrayList<String> temp = treemap.get(count);
+            if(temp == null) {
+                ArrayList<String> temp1 = new ArrayList<>();
+                temp1.add(mName);
+                treemap.put(count, temp1);
+            }
+            else {
+                temp.add(mName);
+                treemap.put(count, temp);
+            }
+        }
+        Entry<Integer, ArrayList<String>> finalList = treemap.firstEntry();
+        if(finalList == null)
+            return null;
+        if(finalList.getValue().size() == 1) {
+            return finalList.getValue().get(0);
+        }
+        return null;
     }
 
     /**
@@ -422,6 +527,7 @@ public class DatabaseMatcher {
      * 
      * @return a Map (key: index of a class. Value: a set of all matched classes(path))
      */
+    @Override
     public Map<Integer, String> getMatchedClasses() {
         return matchedClasses;
     }
@@ -431,12 +537,24 @@ public class DatabaseMatcher {
      * 
      * @return a Map (Key: index of a method. Value: actual name of a method)
      */
+    @Override
     public Map<Integer, String> getMatchedMethods() {
         return matchedMethods;
     }
 
+    @Override
     public Map<Integer, Map<Integer, Integer>> getApkCallerLists() {
         return apkCallerLists;
+    }
+
+    @Override
+    public DatabaseMatcherParameters getParameters() {
+        return params;
+    }
+
+    @Override
+    public ISignatureMetrics getSignatureMetrics() {
+        return sig;
     }
 
 }

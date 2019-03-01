@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.pnf.androsig.apply.model;
+package com.pnf.androsig.apply.matcher;
 
 import java.io.File;
 import java.nio.charset.Charset;
@@ -27,6 +27,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.pnf.androsig.apply.model.DatabaseReference;
+import com.pnf.androsig.apply.model.LibraryInfo;
+import com.pnf.androsig.apply.model.SigDefLine;
 import com.pnf.androsig.common.SignatureHandler;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
@@ -45,7 +48,7 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
  * @author Ruoxiao Wang
  *
  */
-public class Signature {
+class Signature implements ISignatureMetrics {
     private final ILogger logger = GlobalLog.getLogger(Signature.class);
 
     private Map<String, List<String[]>> allTightSignatures;
@@ -271,8 +274,9 @@ public class Signature {
                         tightFlag = false;
                     }
                     if(tightFlag) {
-                        if(ref.allTightHashcodes.containsKey(mhash_tight)) {
-                            usedSigFiles.add(ref.allTightHashcodes.get(mhash_tight).get(0));
+                        List<String> files = ref.getFilesContainingTightHashcode(mhash_tight);
+                        if(files != null && !files.isEmpty()) {
+                            usedSigFiles.add(files.get(files.size() - 1));
                             looseFlag = false;
                         }
                     }
@@ -281,8 +285,10 @@ public class Signature {
                         if(mhash_loose == null) {
                             continue;
                         }
-                        if(ref.allLooseHashcodes.containsKey(mhash_loose)) {
-                            usedSigFiles.add(ref.allLooseHashcodes.get(mhash_loose).get(0));
+                        List<String> files = ref.getFilesContainingLooseHashcode(mhash_loose);
+                        if(files != null && !files.isEmpty()) {
+                            usedSigFiles.add(files.get(files.size() - 1));
+                            looseFlag = false;
                         }
                     }
                 }

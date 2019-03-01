@@ -19,7 +19,6 @@ import java.util.Map;
 
 import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.LibraryInfo;
-import com.pnf.androsig.apply.model.Signature;
 import com.pnf.androsig.apply.model.StructureInfo;
 import com.pnfsoftware.jeb.core.units.code.IInstruction;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
@@ -37,7 +36,7 @@ public class ReportHandler {
      * @param struInfo StructureInfo Object which contains structure informations
      * @param sig Signature Object which contains signature informations
      */
-    public static void generateRecord(IDexUnit unit, StructureInfo struInfo, Signature sig, DatabaseReference ref) {
+    public static void generateRecord(IDexUnit unit, StructureInfo struInfo, DatabaseReference ref) {
         Map<Integer, String> matchedClasses = struInfo.getDbMatcher().getMatchedClasses();
         Map<Integer, String> matchedMethods = struInfo.getDbMatcher().getMatchedMethods();
         DecimalFormat df = new DecimalFormat("#.00");
@@ -89,8 +88,8 @@ public class ReportHandler {
 
         // Generate report
         int allSignatureFileCount = ref.getAllSignatureFileCount();
-        int allSignatureCount =  sig.getAllSignatureCount();
-        int allUsedSignatureFileCount = sig.getAllUsedSignatureFileCount();
+        int allSignatureCount = struInfo.getDbMatcher().getSignatureMetrics().getAllSignatureCount();
+        int allUsedSignatureFileCount = struInfo.getDbMatcher().getSignatureMetrics().getAllUsedSignatureFileCount();
         int allClassCount = unit.getClasses().size();
         int allMatchedClassCount = struInfo.getDbMatcher().getMatchedClasses().size();
         String matchedClassCountP = df.format((allMatchedClassCount * 100.0) / allClassCount);
@@ -103,7 +102,7 @@ public class ReportHandler {
         
         // Library distribution
         
-        Map<String, LibraryInfo> libraryInfos = sig.getAllLibraryInfos();
+        Map<String, LibraryInfo> libraryInfos = struInfo.getDbMatcher().getSignatureMetrics().getAllLibraryInfos();
         Map<String, Integer> libraryMap = new HashMap<>();
         for(String s : matchedClasses.values()) {
             String libname = libraryInfos.get(s).getLibName();

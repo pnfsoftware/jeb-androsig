@@ -114,4 +114,11 @@ public class DatabaseReference {
         return allSignatureFileCount;
     }
 
+    public List<String> getFilesContainingTightHashcode(String hashcode) {
+        return allTightHashcodes.get(hashcode);
+    }
+
+    public List<String> getFilesContainingLooseHashcode(String hashcode) {
+        return allLooseHashcodes.get(hashcode);
+    }
 }

@@ -35,7 +35,7 @@ import com.pnfsoftware.jeb.core.units.MetadataGroupType;
 public class DexMetadataGroupClass extends MetadataGroup {
 
     private Map<String, Object> cmap = new HashMap<>();
-    private StructureInfo struInfo = new StructureInfo();
+    private final StructureInfo struInfo;
 
     public DexMetadataGroupClass(String name, MetadataGroupType type, StructureInfo struInfo) {
         super(name, type);

@@ -31,10 +31,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.pnf.androsig.apply.model.StructureInfo;
 import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.DexHashcodeList;
-import com.pnf.androsig.apply.model.Signature;
+import com.pnf.androsig.apply.model.StructureInfo;
 import com.pnf.androsig.apply.util.MetadataGroupHandler;
 import com.pnf.androsig.apply.util.ReportHandler;
 import com.pnf.androsig.common.AndroSigCommon;
@@ -51,8 +50,6 @@ import com.pnfsoftware.jeb.core.Version;
 import com.pnfsoftware.jeb.core.events.J;
 import com.pnfsoftware.jeb.core.events.JebEvent;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
-import com.pnfsoftware.jeb.util.format.Formatter;
-import com.pnfsoftware.jeb.util.format.Strings;
 import com.pnfsoftware.jeb.util.logging.GlobalLog;
 import com.pnfsoftware.jeb.util.logging.ILogger;
 
@@ -132,40 +129,7 @@ public class AndroidSigApplyPlugin extends AbstractEnginesPlugin {
         }
 
         DatabaseReference ref = new DatabaseReference();
-        Signature sig = new Signature();
-        StructureInfo struInfo = new StructureInfo();
-
-        String methodSizeBar = executionOptions.get("methodSizeBar");
-        int methodSizeBarInt = 6;
-        if(!Strings.isBlank(methodSizeBar)) {
-            try {
-                methodSizeBarInt = Integer.parseInt(methodSizeBar);
-            }
-            catch(NumberFormatException e) {
-                logger.warn("Illegal methodSizeBar parameter: \"%s\" (must be an integer)",
-                        Formatter.escapeString(methodSizeBar));
-            }
-            if(methodSizeBarInt < 0) {
-                methodSizeBarInt = 6;
-            }
-        }
-        struInfo.getDbMatcher().methodSizeBar = methodSizeBarInt;
-
-        String matchedInstusPercentageBar = executionOptions.get("matchedInstusPercentageBar");
-        Double matchedInstusPercentageBarDbl = 0.5;
-        if(!Strings.isBlank(matchedInstusPercentageBar)) {
-            try {
-                matchedInstusPercentageBarDbl = Double.parseDouble(matchedInstusPercentageBar);
-            }
-            catch(NumberFormatException e) {
-                logger.warn("Illegal matchedInstusPercentageBar parameter: \"%s\" (must be a double)",
-                        Formatter.escapeString(matchedInstusPercentageBar));
-            }
-            if(matchedInstusPercentageBarDbl < 0.0 || matchedInstusPercentageBarDbl > 1.0) {
-                matchedInstusPercentageBarDbl = 0.5;
-            }
-        }
-        struInfo.getDbMatcher().matchedInstusPercentageBar = matchedInstusPercentageBarDbl;
+        StructureInfo struInfo = new StructureInfo(executionOptions, ref);
 
         File sigFolder;
         try {
@@ -180,8 +144,6 @@ public class AndroidSigApplyPlugin extends AbstractEnginesPlugin {
 
         List<IDexUnit> dexlist = RuntimeProjectUtil.findUnitsByType(prj, IDexUnit.class, false);
         for(IDexUnit dex: dexlist) {
-            // Load all signatures
-            sig.loadAllSignatures(dex, ref);
             DexHashcodeList dexHashCodeList = new DexHashcodeList();
             dexHashCodeList.loadAPKHashcodes(dex);
 
@@ -190,7 +152,7 @@ public class AndroidSigApplyPlugin extends AbstractEnginesPlugin {
             MetadataGroupHandler.createCodeGroupClass(dex, struInfo);
 
             // Apply signature
-            struInfo.rebuildStructure(dex, sig, dexHashCodeList);
+            struInfo.rebuildStructure(dex, dexHashCodeList);
 
             if(Thread.currentThread().isInterrupted()) {
                 logger.info("Tread Interrupted!");
@@ -200,7 +162,7 @@ public class AndroidSigApplyPlugin extends AbstractEnginesPlugin {
             // Notify system
             dex.notifyListeners(new JebEvent(J.UnitChange));
             // Output result
-            ReportHandler.generateRecord(dex, struInfo, sig, ref);
+            ReportHandler.generateRecord(dex, struInfo, ref);
 
             /************* For testing *************/
             //ReportHandler.serializeReport(dex, struInfo);

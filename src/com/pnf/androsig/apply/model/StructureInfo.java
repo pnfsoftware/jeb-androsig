@@ -18,16 +18,15 @@
 
 package com.pnf.androsig.apply.model;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.TreeMap;
 
+import com.pnf.androsig.apply.matcher.DatabaseMatcherFactory;
+import com.pnf.androsig.apply.matcher.IDatabaseMatcher;
 import com.pnf.androsig.apply.util.MetadataGroupHandler;
 import com.pnf.androsig.apply.util.StructureHandler;
 import com.pnf.androsig.common.SignatureHandler;
@@ -35,7 +34,6 @@ import com.pnfsoftware.jeb.core.output.ItemClassIdentifiers;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
-import com.pnfsoftware.jeb.core.units.code.android.dex.IDexPrototype;
 import com.pnfsoftware.jeb.util.logging.GlobalLog;
 import com.pnfsoftware.jeb.util.logging.ILogger;
 
@@ -57,20 +55,15 @@ public class StructureInfo {
     private Set<Integer> modifiedClasses;
 
 
-    private DatabaseMatcher dbMatcher;
+    private IDatabaseMatcher dbMatcher;
 
-    // TODO remove
-    private DexHashcodeList methodHashcodes;
-    private Map<String, List<String[]>> allTightSignatures;
-    private Map<String, List<String[]>> allLooseSignatures;
-
-    public StructureInfo() {
+    public StructureInfo(Map<String, String> executionOptions, DatabaseReference ref) {
         matchedMethods_new_orgPath = new HashMap<>();
         matchedClasses_new_orgPath = new HashMap<>();
 
         modifiedClasses = new HashSet<>();
 
-        dbMatcher = new DatabaseMatcher();
+        dbMatcher = DatabaseMatcherFactory.build(executionOptions, ref);
     }
 
     /**
@@ -99,17 +92,15 @@ public class StructureInfo {
      * @param sig Signature Object
      * @param dexHashCodeList
      */
-    public void rebuildStructure(IDexUnit unit, Signature sig, DexHashcodeList dexHashCodeList) {
-        getSignatures(sig);
-        methodHashcodes = dexHashCodeList;
-        logger.info("methodSizeBar " + dbMatcher.methodSizeBar);
-        logger.info("matchedInstusPercentageBar " + dbMatcher.matchedInstusPercentageBar);
+    public void rebuildStructure(IDexUnit unit, DexHashcodeList dexHashCodeList) {
+        logger.info("methodSizeBar " + dbMatcher.getParameters().methodSizeBar);
+        logger.info("matchedInstusPercentageBar " + dbMatcher.getParameters().matchedInstusPercentageBar);
 
         // First Round using tight signature and loose signature
         logger.info("Signature matching 1 start...");
         final long startTime = System.currentTimeMillis();
 
-        matchingVerOne(unit, sig);
+        matchingVerOne(unit, dexHashCodeList);
 
         final long endTime = System.currentTimeMillis();
         logger.info("Signature matching 1 start completed! (Execution Time: " + (endTime - startTime) / 1000 + "s)");
@@ -124,7 +115,7 @@ public class StructureInfo {
             return;
         }
 
-        matchingVerTwo(unit, sig);
+        matchingVerTwo(unit, dexHashCodeList);
 
         final long endTime1 = System.currentTimeMillis();
         logger.info("Signature matching 2 start completed! (Execution Time: " + (endTime1 - startTime1) / 1000 + "s)");
@@ -137,28 +128,32 @@ public class StructureInfo {
         storeAllMatchedClasses_new_orgPath(unit);
     }
 
-    private void matchingVerOne(IDexUnit unit, Signature sig) {
-        dbMatcher.storeMatchedClassesAndMethods(unit, sig, methodHashcodes, true);
+    private void matchingVerOne(IDexUnit unit, DexHashcodeList dexHashCodeList) {
+        dbMatcher.storeMatchedClassesAndMethods(unit, dexHashCodeList, true);
         // rename matched classes and methods
         renameMatchedClassesAndMethods(unit);
         // rename matched packages
         renameMatchedPackages(unit);
 
-        // rename small methods
-        renameSmallMethods(unit);
+        Map<Integer, String> newClasses = dbMatcher.postProcessRenameClasses(unit, dexHashCodeList, true);
+        Map<Integer, String> newMethods = dbMatcher.postProcessRenameMethods(unit, dexHashCodeList, true);
+        postProcess(unit, newClasses, newMethods);
 
         SignatureHandler.loadAllCallerLists(unit, dbMatcher.getApkCallerLists(), dbMatcher.getMatchedClasses(),
                 dbMatcher.getMatchedMethods());
     }
 
-    private void matchingVerTwo(IDexUnit unit, Signature sig) {
+    private void matchingVerTwo(IDexUnit unit, DexHashcodeList dexHashCodeList) {
         int matchedClassCount = dbMatcher.getMatchedClasses().size();
         logger.info("After matching ver 1 SIZE: " + dbMatcher.getMatchedClasses().size());
         while(true) {
-            dbMatcher.storeMatchedClassesAndMethods(unit, sig, methodHashcodes, false);
+            dbMatcher.storeMatchedClassesAndMethods(unit, dexHashCodeList, false);
             renameMatchedClassesAndMethods(unit);
             renameMatchedPackages(unit);
-            renameSmallMethods(unit);
+            Map<Integer, String> newClasses = dbMatcher.postProcessRenameClasses(unit, dexHashCodeList, true);
+            Map<Integer, String> newMethods = dbMatcher.postProcessRenameMethods(unit, dexHashCodeList, true);
+            postProcess(unit, newClasses, newMethods);
+
             logger.info("SIZE: " + dbMatcher.getMatchedClasses().size());
             if(dbMatcher.getMatchedClasses().size() == matchedClassCount) {
                 break;
@@ -171,9 +166,20 @@ public class StructureInfo {
         }
     }
 
-    private void getSignatures(Signature sig) {
-        allLooseSignatures = sig.getAllLooseSignatures();
-        allTightSignatures = sig.getAllTightSignatures();
+    private void postProcess(IDexUnit unit, Map<Integer, String> newClasses, Map<Integer, String> newMethods) {
+        for(Entry<Integer, String> each: newClasses.entrySet()) {
+            IDexClass eClass = unit.getClass(each.getKey());
+            StructureHandler.rename(unit, each.getValue(), eClass.getItemId());
+            MetadataGroupHandler.getCodeGroupClass(unit).setData(eClass.getSignature(false),
+                    ItemClassIdentifiers.CODE_ROUTINE.getId());
+        }
+
+        for(Entry<Integer, String> each: newMethods.entrySet()) {
+            IDexMethod method = unit.getMethod(each.getKey());
+            StructureHandler.rename(unit, each.getValue(), method.getItemId());
+            MetadataGroupHandler.getCodeGroupMethod(unit).setData(method.getSignature(false),
+                    ItemClassIdentifiers.CODE_LIBRARY.getId());
+        }
     }
 
     private void renameMatchedClassesAndMethods(IDexUnit unit) {
@@ -231,88 +237,6 @@ public class StructureInfo {
         }
     }
 
-    private void renameSmallMethods(IDexUnit unit) {
-        Map<String, Integer> map = new HashMap<>();
-        TreeMap<Integer, ArrayList<String>> treemap = new TreeMap<>(Collections.reverseOrder());
-        for(int cIndex: dbMatcher.getMatchedClasses().keySet()) {
-            IDexClass eClass = unit.getClass(cIndex);
-            String classPath = eClass.getSignature(true);
-            List<? extends IDexMethod> methods = eClass.getMethods();
-            for(IDexMethod method: methods) {
-                if(dbMatcher.getMatchedMethods().containsKey(method.getIndex())) {
-                    continue;
-                }
-                map.clear();
-                treemap.clear();
-                IDexPrototype proto = unit.getPrototypes().get(method.getPrototypeIndex());
-                String shorty = unit.getStrings().get(proto.getShortyIndex()).getValue();
-                String mhash_tight = methodHashcodes.getTightHashcode(method);
-                if(mhash_tight == null) {
-                    continue;
-                }
-                List<String[]> sigs = allTightSignatures.get(mhash_tight);
-                String methodName = null;
-                if(sigs != null) {
-                    methodName = findMethodName(map, treemap, sigs, shorty, classPath);
-                }
-                if(methodName == null) {
-                    String mhash_loose = methodHashcodes.getLooseHashcode(method);
-                    sigs = allLooseSignatures.get(mhash_loose);
-                    if(sigs != null) {
-                        methodName = findMethodName(map, treemap, sigs, shorty, classPath);
-                    }
-                }
-                if(methodName != null) {
-                    // TODO model break: should not modify here
-                    dbMatcher.getMatchedMethods().put(method.getIndex(), methodName);
-                    StructureHandler.rename(unit, methodName, method.getItemId());
-                    MetadataGroupHandler.getCodeGroupMethod(unit).setData(method.getSignature(false),
-                            ItemClassIdentifiers.CODE_LIBRARY.getId());
-                }
-            }
-        }
-    }
-
-    private String findMethodName(Map<String, Integer> map, TreeMap<Integer, ArrayList<String>> treemap,
-            List<String[]> sigs, String shorty, String classPath) {
-        for(String[] strArray: sigs) {
-            if(!strArray[2].equals(shorty)) {
-                continue;
-            }
-            if(!strArray[0].equals(classPath)) {
-                continue;
-            }
-            Integer count = map.get(strArray[1]);
-            if(count == null) {
-                map.put(strArray[1], 1);
-            }
-            else {
-                map.put(strArray[1], count + 1);
-            }
-        }
-        for(Map.Entry<String, Integer> entry: map.entrySet()) {
-            String mName = entry.getKey();
-            int count = entry.getValue();
-            ArrayList<String> temp = treemap.get(count);
-            if(temp == null) {
-                ArrayList<String> temp1 = new ArrayList<>();
-                temp1.add(mName);
-                treemap.put(count, temp1);
-            }
-            else {
-                temp.add(mName);
-                treemap.put(count, temp);
-            }
-        }
-        Entry<Integer, ArrayList<String>> finalList = treemap.firstEntry();
-        if(finalList == null)
-            return null;
-        if(finalList.getValue().size() == 1) {
-            return finalList.getValue().get(0);
-        }
-        return null;
-    }
-
     private void moveExceptionalClasses(IDexUnit unit) {
         List<? extends IDexClass> classes = unit.getClasses();
         if(classes == null || classes.size() == 0) {
@@ -348,7 +272,7 @@ public class StructureInfo {
         }
     }
 
-    public DatabaseMatcher getDbMatcher() {
+    public IDatabaseMatcher getDbMatcher() {
         return dbMatcher;
     }
 
