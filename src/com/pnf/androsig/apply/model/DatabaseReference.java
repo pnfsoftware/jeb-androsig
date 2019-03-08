@@ -26,8 +26,14 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
 public class DatabaseReference {
     private final ILogger logger = GlobalLog.getLogger(DatabaseReference.class);
 
+    private static final int LIMIT_LOAD = 200;
+
+    /** file list containing a hashcode, with hashcode as key */
     Map<String, List<String>> allTightHashcodes;
     Map<String, List<String>> allLooseHashcodes;
+    /** sigLines, with filename as key */
+    Map<String, SignatureFile> sigLinePerFilename = new HashMap<>();
+    List<String> loadOrder = new ArrayList<>();
 
     private int allSignatureFileCount = 0;
 
@@ -120,5 +126,34 @@ public class DatabaseReference {
 
     public List<String> getFilesContainingLooseHashcode(String hashcode) {
         return allLooseHashcodes.get(hashcode);
+    }
+
+    public List<String[]> getSignatureLines(String file, String hashcode, boolean tight) {
+        SignatureFile sigFile = getSignatureFile(file);
+        return tight ? sigFile.getAllTightSignatures().get(hashcode): sigFile.getAllLooseSignatures().get(hashcode);
+    }
+
+    public SignatureFile getSignatureFile(String file) {
+        SignatureFile sigFile = sigLinePerFilename.get(file);
+        if(sigFile == null) {
+            if(sigLinePerFilename.size() >= LIMIT_LOAD) {
+                // delete half
+                int deleted = LIMIT_LOAD / 2;
+                for(int i = 0; i < deleted; i++) {
+                    sigLinePerFilename.remove(loadOrder.remove(0));
+                }
+            }
+            sigFile = new SignatureFile();
+            sigFile.loadSignatures(new File(file));
+            sigLinePerFilename.put(file, sigFile);
+            // logger.info("Load %s", file);
+        }
+        loadOrder.remove(file);
+        loadOrder.add(file);
+        return sigFile;
+    }
+
+    public Map<String, SignatureFile> getLoadedSignatureFiles() {
+        return sigLinePerFilename;
     }
 }

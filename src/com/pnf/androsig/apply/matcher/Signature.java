@@ -19,9 +19,6 @@
 package com.pnf.androsig.apply.matcher;
 
 import java.io.File;
-import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -29,20 +26,17 @@ import java.util.Set;
 
 import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.LibraryInfo;
-import com.pnf.androsig.apply.model.SigDefLine;
+import com.pnf.androsig.apply.model.SignatureFile;
 import com.pnf.androsig.common.SignatureHandler;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexCodeItem;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethodData;
-import com.pnfsoftware.jeb.util.encoding.Conversion;
-import com.pnfsoftware.jeb.util.io.IO;
 import com.pnfsoftware.jeb.util.logging.GlobalLog;
 import com.pnfsoftware.jeb.util.logging.ILogger;
 
 /**
- * TODO This class will be removed<br>
  * The class contains all information about the signatures.
  * 
  * @author Ruoxiao Wang
@@ -51,29 +45,19 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
 class Signature implements ISignatureMetrics {
     private final ILogger logger = GlobalLog.getLogger(Signature.class);
 
-    private Map<String, List<String[]>> allTightSignatures;
-    private Map<String, List<String[]>> allLooseSignatures;
-
-    private Map<String, LibraryInfo> allLibraryInfos;
+    private final SignatureFile sigFile = new SignatureFile();
 
     // Record
-    private int allSignatureCount = 0;
     private int allUsedSignatureFileCount = 0;
-
-    public Signature() {
-        allTightSignatures = new HashMap<>();
-        allLooseSignatures = new HashMap<>();
-
-        allLibraryInfos = new HashMap<>();
-    }
 
     /**
      * Get the number of signatures.
      * 
      * @return the number of signatures
      */
+    @Override
     public int getAllSignatureCount() {
-        return allSignatureCount;
+        return sigFile.getAllSignatureCount();
     }
 
     /**
@@ -81,6 +65,7 @@ class Signature implements ISignatureMetrics {
      * 
      * @return the number of used signature files
      */
+    @Override
     public int getAllUsedSignatureFileCount() {
         return allUsedSignatureFileCount;
     }
@@ -92,7 +77,7 @@ class Signature implements ISignatureMetrics {
      *         cname, mname, shorty})
      */
     public Map<String, List<String[]>> getAllTightSignatures() {
-        return allTightSignatures;
+        return sigFile.getAllTightSignatures();
     }
 
     /**
@@ -102,7 +87,7 @@ class Signature implements ISignatureMetrics {
      *         cname, mname, shorty})
      */
     public Map<String, List<String[]>> getAllLooseSignatures() {
-        return allLooseSignatures;
+        return sigFile.getAllLooseSignatures();
     }
 
     /**
@@ -110,8 +95,9 @@ class Signature implements ISignatureMetrics {
      * 
      * @return a Map (Key: the class signature path. Value: LibraryInfo Object)
      */
+    @Override
     public Map<String, LibraryInfo> getAllLibraryInfos() {
-        return allLibraryInfos;
+        return sigFile.getAllLibraryInfos();
     }
 
     /**
@@ -134,7 +120,7 @@ class Signature implements ISignatureMetrics {
         File f;
         for(String filePath: usedSigFiles) {
             f = new File(filePath);
-            if(!loadSignatures(f)) {
+            if(!sigFile.loadSignatures(f)) {
                 logger.error("Cannot load signatures files: %s", f);
             }
         }
@@ -143,104 +129,21 @@ class Signature implements ISignatureMetrics {
         allUsedSignatureFileCount = usedSigFiles.size();
         usedSigFiles.clear();
         long a = 0;
-        for(List<String[]> e: allTightSignatures.values()) {
+        for(List<String[]> e: getAllTightSignatures().values()) {
             a += e.size();
         }
         long b = 0;
-        for(List<String[]> e: allLooseSignatures.values()) {
+        for(List<String[]> e: getAllLooseSignatures().values()) {
             b += e.size();
         }
-        int allSigCount = allTightSignatures.size() + allLooseSignatures.size();
+        int allSigCount = getAllTightSignatures().size() + getAllLooseSignatures().size();
         long c = allSigCount == 0 ? -1: (a + b) / allSigCount;
         logger.info("Average candidates: " + c);
 
-        logger.info("allTightSignatures map size: " + allTightSignatures.size());
+        logger.info("allTightSignatures map size: " + getAllTightSignatures().size());
         logger.info("candidates: " + a);
-        logger.info("allLooseSignatures map size: " + allLooseSignatures.size());
+        logger.info("allLooseSignatures map size: " + getAllLooseSignatures().size());
         logger.info("candidates: " + b);
-    }
-
-    private boolean loadSignatures(File sigFile) {
-        int version = 0;
-        String libname = "Unknown library code";
-        String author = "Unknown author";
-
-        List<String> lines = IO.readLinesSafe(sigFile, Charset.forName("UTF-8"));
-        if(lines == null) {
-            return false;
-        }
-
-        List<SigDefLine> mllist = new ArrayList<>();
-        // Store library information
-        LibraryInfo libraryInfo = new LibraryInfo();
-
-        for(String line: lines) {
-            line = line.trim();
-            if(line.isEmpty()) {
-                continue;
-            }
-
-            if(line.startsWith(";")) {
-                line = line.substring(1);
-
-                String value = checkMarker(line, "version");
-                if(value != null) {
-                    version = Conversion.stringToInt(value);
-                    libraryInfo.setVersion(version);
-                }
-
-                value = checkMarker(line, "libname");
-                if(value != null) {
-                    libname = value;
-                    libraryInfo.setLibName(libname);
-                }
-
-                value = checkMarker(line, "author");
-                if(value != null) {
-                    author = value;
-                    libraryInfo.setAuthor(author);
-                }
-                continue;
-            }
-
-            SigDefLine ml = new SigDefLine();
-            ml = ml.parse(line);
-            if(ml == null) {
-                logger.warn("Invalid signature line: %s", line);
-                continue;
-            }
-
-            mllist.add(ml);
-            allLibraryInfos.put(ml.getCname(), libraryInfo);
-            allSignatureCount++;
-        }
-
-        // store method signatures
-        for(SigDefLine ml: mllist) {
-            storeMethodHash(ml.getMhash_loose(), ml.getMhash_tight(), ml.getCname(), ml.getMname(), ml.getShorty(),
-                    ml.getPrototype(), ml.getCaller());
-        }
-        return true;
-    }
-
-    private String checkMarker(String line, String marker) {
-        if(line.startsWith(marker + "=")) {
-            return line.substring(marker.length() + 1).trim();
-        }
-        return null;
-    }
-
-    private void storeMethodHash(String mhash_loose, String mhash_tight, String cname, String mname, String shorty,
-            String prototype, String caller) {
-        String[] sigs = new String[]{cname, mname, shorty, prototype, caller};
-        if(!allTightSignatures.containsKey(mhash_tight)) {
-            allTightSignatures.put(mhash_tight, new ArrayList<String[]>());
-        }
-        allTightSignatures.get(mhash_tight).add(sigs);
-        if(!allLooseSignatures.containsKey(mhash_loose)) {
-            allLooseSignatures.put(mhash_loose, new ArrayList<String[]>());
-        }
-        allLooseSignatures.get(mhash_loose).add(sigs);
     }
 
     private void storeAllUsedSigFiles(IDexUnit dex, Set<String> usedSigFiles, DatabaseReference ref) {

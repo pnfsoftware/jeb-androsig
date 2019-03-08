@@ -206,4 +206,20 @@ public class MethodSignature {
     public static String getLooseSignature(String[] signatureLine) {
         return signatureLine[6];
     }
+
+    public static String getShorty(String[] signatureLine) {
+        return signatureLine[2];
+    }
+
+    public static String getPrototype(String[] signatureLine) {
+        return signatureLine[3];
+    }
+
+    public static String getClassname(String[] signatureLine) {
+        return signatureLine[0];
+    }
+
+    public static String getMethodName(String[] signatureLine) {
+        return signatureLine[1];
+    }
 }
