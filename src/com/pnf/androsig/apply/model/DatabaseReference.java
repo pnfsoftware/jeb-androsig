@@ -9,8 +9,10 @@ import java.io.File;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.pnfsoftware.jeb.util.io.IO;
 import com.pnfsoftware.jeb.util.logging.GlobalLog;
@@ -29,18 +31,14 @@ public class DatabaseReference {
     private static final int LIMIT_LOAD = 200;
 
     /** file list containing a hashcode, with hashcode as key */
-    Map<String, List<String>> allTightHashcodes;
-    Map<String, List<String>> allLooseHashcodes;
+    private Map<String, Set<String>> allTightHashcodes = new HashMap<>();
+    private Map<String, Set<String>> allLooseHashcodes = new HashMap<>();
+    private Map<String, Set<String>> allClasses = new HashMap<>();
     /** sigLines, with filename as key */
-    Map<String, SignatureFile> sigLinePerFilename = new HashMap<>();
-    List<String> loadOrder = new ArrayList<>();
+    private Map<String, SignatureFile> sigLinePerFilename = new HashMap<>();
+    private List<String> loadOrder = new ArrayList<>();
 
     private int allSignatureFileCount = 0;
-
-    public DatabaseReference() {
-        allTightHashcodes = new HashMap<>();
-        allLooseHashcodes = new HashMap<>();
-    }
 
     /**
      * Load all hashcodes from signature files.
@@ -91,19 +89,28 @@ public class DatabaseReference {
 
             String mhash_tight = MethodSignature.getTightSignature(subLines);
             if(mhash_tight != null) {
-                List<String> files = allTightHashcodes.get(mhash_tight);
+                Set<String> files = allTightHashcodes.get(mhash_tight);
                 if(files == null) {
-                    files = new ArrayList<>();
+                    files = new LinkedHashSet<>();
                     allTightHashcodes.put(mhash_tight, files);
                 }
                 files.add(sigFile.getAbsolutePath());
             }
             String mhash_loose = MethodSignature.getLooseSignature(subLines);
             if(mhash_loose != null) {
-                List<String> files = allLooseHashcodes.get(mhash_loose);
+                Set<String> files = allLooseHashcodes.get(mhash_loose);
                 if(files == null) {
-                    files = new ArrayList<>();
+                    files = new LinkedHashSet<>();
                     allLooseHashcodes.put(mhash_loose, files);
+                }
+                files.add(sigFile.getAbsolutePath());
+            }
+            String className = MethodSignature.getClassname(subLines);
+            if(className != null) {
+                Set<String> files = allClasses.get(className);
+                if(files == null) {
+                    files = new LinkedHashSet<>();
+                    allClasses.put(className, files);
                 }
                 files.add(sigFile.getAbsolutePath());
             }
@@ -121,11 +128,18 @@ public class DatabaseReference {
     }
 
     public List<String> getFilesContainingTightHashcode(String hashcode) {
-        return allTightHashcodes.get(hashcode);
+        Set<String> res = allTightHashcodes.get(hashcode);
+        return res == null ? null: new ArrayList<>(res);
     }
 
     public List<String> getFilesContainingLooseHashcode(String hashcode) {
-        return allLooseHashcodes.get(hashcode);
+        Set<String> res = allLooseHashcodes.get(hashcode);
+        return res == null ? null: new ArrayList<>(res);
+    }
+
+    public List<String> getFilesContainingClass(String className) {
+        Set<String> res = allClasses.get(className);
+        return res == null ? null: new ArrayList<>(res);
     }
 
     public List<String[]> getSignatureLines(String file, String hashcode, boolean tight) {

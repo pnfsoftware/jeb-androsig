@@ -188,36 +188,40 @@ public class StructureInfo {
             return;
         }
         for(IDexClass eClass: classes) {
-            if(modifiedClasses.contains(eClass.getIndex())) {
+            if(!dbMatcher.getMatchedClasses().containsKey(eClass.getIndex())) {
                 continue;
             }
-            if(dbMatcher.getMatchedClasses().containsKey(eClass.getIndex())) {
+            if(!modifiedClasses.contains(eClass.getIndex())) {
                 // Rename class
                 String classPath_sig = dbMatcher.getMatchedClasses().get(eClass.getIndex());
                 String className = classPath_sig.substring(classPath_sig.lastIndexOf("/") + 1,
                         classPath_sig.length() - 1);
+                int innerClassStartName = className.lastIndexOf("$");
+                if(innerClassStartName >= 0) {
+                    className = className.substring(innerClassStartName + 1);
+                }
                 StructureHandler.rename(unit, className, eClass.getItemId());
                 MetadataGroupHandler.getCodeGroupClass(unit).setData(eClass.getSignature(false),
                         ItemClassIdentifiers.CODE_ROUTINE.getId());
                 modifiedClasses.add(eClass.getIndex());
+            }
 
-                // Rename methods
-                List<? extends IDexMethod> methods = eClass.getMethods();
-                if(methods == null || methods.size() == 0) {
-                    continue;
-                }
+            // Rename methods
+            List<? extends IDexMethod> methods = eClass.getMethods();
+            if(methods == null || methods.size() == 0) {
+                continue;
+            }
 
-                if(dbMatcher.getMatchedMethods() == null || dbMatcher.getMatchedMethods().size() == 0) {
-                    continue;
-                }
+            if(dbMatcher.getMatchedMethods() == null || dbMatcher.getMatchedMethods().size() == 0) {
+                continue;
+            }
 
-                for(IDexMethod eMethod: methods) {
-                    String temp = dbMatcher.getMatchedMethods().get(eMethod.getIndex());
-                    if(temp != null) {
-                        StructureHandler.rename(unit, temp, eMethod.getItemId());
-                        MetadataGroupHandler.getCodeGroupMethod(unit).setData(eMethod.getSignature(false),
-                                ItemClassIdentifiers.CODE_LIBRARY.getId());
-                    }
+            for(IDexMethod eMethod: methods) {
+                String temp = dbMatcher.getMatchedMethods().get(eMethod.getIndex());
+                if(temp != null && !eMethod.getName(true).equals(temp)) {
+                    StructureHandler.rename(unit, temp, eMethod.getItemId());
+                    MetadataGroupHandler.getCodeGroupMethod(unit).setData(eMethod.getSignature(false),
+                            ItemClassIdentifiers.CODE_LIBRARY.getId());
                 }
             }
         }
@@ -229,7 +233,7 @@ public class StructureInfo {
         }
         for(Map.Entry<Integer, String> eClass: dbMatcher.getMatchedClasses().entrySet()) {
             int lastSlash = eClass.getValue().lastIndexOf("/");
-            if(lastSlash >= 0) {
+            if(lastSlash >= 0 && !eClass.getValue().contains("$")) {
                 String packagePath = eClass.getValue().substring(0, lastSlash) + ";";
                 StructureHandler.createPackage(unit, packagePath);
                 StructureHandler.moveClass(unit, packagePath, unit.getClass(eClass.getKey()).getItemId());
