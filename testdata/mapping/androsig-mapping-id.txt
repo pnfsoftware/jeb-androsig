@@ -1,0 +1,6 @@
+Lcom/pnf/testandrosig/GreatClass; -> Lcom/pnf/testandrosig/GreatClass;
+	(2)<init>()V -> <init>()V
+	(16)main([Ljava/lang/String;)V -> main([Ljava/lang/String;)V
+	(2)getGreatField()I -> getGreatField()I
+	(2)setGreatField(I)V -> setGreatField(I)V
+1,00
