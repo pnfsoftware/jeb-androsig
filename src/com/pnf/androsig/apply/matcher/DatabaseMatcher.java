@@ -17,6 +17,7 @@ import java.util.TreeMap;
 
 import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.DexHashcodeList;
+import com.pnf.androsig.apply.model.MethodSignature;
 import com.pnfsoftware.jeb.core.units.code.IInstruction;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
@@ -64,8 +65,8 @@ class DatabaseMatcher implements IDatabaseMatcher {
 
     private Map<Integer, Double> instruCount = new HashMap<>();;
 
-    private Map<String, List<String[]>> allTightSignatures;
-    private Map<String, List<String[]>> allLooseSignatures;
+    private Map<String, List<MethodSignature>> allTightSignatures;
+    private Map<String, List<MethodSignature>> allLooseSignatures;
 
     public DatabaseMatcher(DatabaseMatcherParameters params, DatabaseReference ref) {
         this.params = params;
@@ -163,7 +164,7 @@ class DatabaseMatcher implements IDatabaseMatcher {
                 continue;
             }
 
-            List<String[]> elts = allTightSignatures.get(mhash_tight);
+            List<MethodSignature> elts = allTightSignatures.get(mhash_tight);
 
             if(elts != null && applySignatures_innerLoop(dex, sig, eMethod, elts, classPathCount, classPathMethod,
                     dupChecker, firstRound)) {
@@ -181,7 +182,8 @@ class DatabaseMatcher implements IDatabaseMatcher {
         return flag;
     }
 
-    private boolean applySignatures_innerLoop(IDexUnit dex, Signature sig, IDexMethod eMethod, List<String[]> elts,
+    private boolean applySignatures_innerLoop(IDexUnit dex, Signature sig, IDexMethod eMethod,
+            List<MethodSignature> elts,
             Map<String, Integer> classPathCount_map, Map<String, Map<Integer, Set<String>>> classPathMethod_map,
             Set<String> dupChecker, boolean firstRound) {
         IDexPrototype proto = dex.getPrototypes().get(eMethod.getPrototypeIndex());
@@ -193,7 +195,8 @@ class DatabaseMatcher implements IDatabaseMatcher {
 
         if(firstRound) {
             // One class has several same sigs
-            for(String[] strArray: elts) {
+            for(MethodSignature msig: elts) {
+                String[] strArray = msig.toTokens();
                 if(!strArray[2].equals(shorty) || !strArray[3].equals(prototype)) {
                     continue;
                 }
@@ -209,7 +212,8 @@ class DatabaseMatcher implements IDatabaseMatcher {
             TreeMap<Integer, ArrayList<String[]>> map = new TreeMap<>(Collections.reverseOrder());
             Map<String, Integer> targetCallerList = new HashMap<>();
 
-            for(String[] strArray: elts) {
+            for(MethodSignature msig: elts) {
+                String[] strArray = msig.toTokens();
                 if(!strArray[2].equals(shorty) || !strArray[3].equals(prototype)) {
                     continue;
                 }
@@ -233,7 +237,7 @@ class DatabaseMatcher implements IDatabaseMatcher {
                         }
                     }
                 }
-                ArrayList<String[]> temp = map.get(count);
+                List<String[]> temp = map.get(count);
                 if(temp != null) {
                     temp.add(strArray);
                 }
@@ -461,7 +465,7 @@ class DatabaseMatcher implements IDatabaseMatcher {
                 if(mhash_tight == null) {
                     continue;
                 }
-                List<String[]> sigs = allTightSignatures.get(mhash_tight);
+                List<MethodSignature> sigs = allTightSignatures.get(mhash_tight);
                 String methodName = null;
                 if(sigs != null) {
                     methodName = findMethodName(map, treemap, sigs, shorty, classPath);
@@ -483,8 +487,9 @@ class DatabaseMatcher implements IDatabaseMatcher {
     }
 
     private String findMethodName(Map<String, Integer> map, TreeMap<Integer, ArrayList<String>> treemap,
-            List<String[]> sigs, String shorty, String classPath) {
-        for(String[] strArray: sigs) {
+            List<MethodSignature> sigs, String shorty, String classPath) {
+        for(MethodSignature msig: sigs) {
+            String[] strArray = msig.toTokens();
             if(!strArray[2].equals(shorty)) {
                 continue;
             }

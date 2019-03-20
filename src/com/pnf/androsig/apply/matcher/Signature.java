@@ -26,6 +26,7 @@ import java.util.Set;
 
 import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.LibraryInfo;
+import com.pnf.androsig.apply.model.MethodSignature;
 import com.pnf.androsig.apply.model.SignatureFile;
 import com.pnf.androsig.common.SignatureHandler;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
@@ -76,7 +77,7 @@ class Signature implements ISignatureMetrics {
      * @return a Map (Key: the tight method signature. Value: a list of string array {libname,
      *         cname, mname, shorty})
      */
-    public Map<String, List<String[]>> getAllTightSignatures() {
+    public Map<String, List<MethodSignature>> getAllTightSignatures() {
         return sigFile.getAllTightSignatures();
     }
 
@@ -86,7 +87,7 @@ class Signature implements ISignatureMetrics {
      * @return a Map (Key: the loose method signature. Value: a list of string array {libname,
      *         cname, mname, shorty})
      */
-    public Map<String, List<String[]>> getAllLooseSignatures() {
+    public Map<String, List<MethodSignature>> getAllLooseSignatures() {
         return sigFile.getAllLooseSignatures();
     }
 
@@ -129,11 +130,11 @@ class Signature implements ISignatureMetrics {
         allUsedSignatureFileCount = usedSigFiles.size();
         usedSigFiles.clear();
         long a = 0;
-        for(List<String[]> e: getAllTightSignatures().values()) {
+        for(List<MethodSignature> e: getAllTightSignatures().values()) {
             a += e.size();
         }
         long b = 0;
-        for(List<String[]> e: getAllLooseSignatures().values()) {
+        for(List<MethodSignature> e: getAllLooseSignatures().values()) {
             b += e.size();
         }
         int allSigCount = getAllTightSignatures().size() + getAllLooseSignatures().size();

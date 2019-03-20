@@ -16,7 +16,7 @@ import com.pnf.androsig.apply.model.DatabaseReference;
 public class DatabaseMatcherFactory {
 
     public static IDatabaseMatcher build(DatabaseMatcherParameters params, DatabaseReference ref) {
-        return new DatabaseMatcher(params, ref);
+        return new DatabaseMatcher2(params, ref);
     }
 
     public static IDatabaseMatcher build(Map<String, String> executionOptions, DatabaseReference ref) {

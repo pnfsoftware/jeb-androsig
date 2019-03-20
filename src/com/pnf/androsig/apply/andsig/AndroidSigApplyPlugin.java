@@ -69,9 +69,6 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
 public class AndroidSigApplyPlugin extends AbstractEnginesPlugin {
     private final ILogger logger = GlobalLog.getLogger(AndroidSigApplyPlugin.class);
 
-    // Debug
-    public boolean verbose = true;
-
     @Override
     public IPluginInformation getPluginInformation() {
         return new PluginInformation("Android Code Recognition",

@@ -142,7 +142,7 @@ public class DatabaseReference {
         return res == null ? null: new ArrayList<>(res);
     }
 
-    public List<String[]> getSignatureLines(String file, String hashcode, boolean tight) {
+    public List<MethodSignature> getSignatureLines(String file, String hashcode, boolean tight) {
         SignatureFile sigFile = getSignatureFile(file);
         return tight ? sigFile.getAllTightSignatures().get(hashcode): sigFile.getAllLooseSignatures().get(hashcode);
     }

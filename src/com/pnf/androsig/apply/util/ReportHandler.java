@@ -105,7 +105,12 @@ public class ReportHandler {
         Map<String, LibraryInfo> libraryInfos = struInfo.getDbMatcher().getSignatureMetrics().getAllLibraryInfos();
         Map<String, Integer> libraryMap = new HashMap<>();
         for(String s : matchedClasses.values()) {
-            String libname = libraryInfos.get(s).getLibName();
+            LibraryInfo lib = libraryInfos.get(s);
+            if(lib == null) {
+                // reference to external class (not necessary in libs), matched by param matcher for example
+                continue;
+            }
+            String libname = lib.getLibName();
             Integer count = libraryMap.get(libname);
             if(count == null) {
                 count = 0;

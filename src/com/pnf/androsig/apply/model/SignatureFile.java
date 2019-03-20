@@ -26,8 +26,8 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
 public class SignatureFile {
     private final ILogger logger = GlobalLog.getLogger(SignatureFile.class);
 
-    private Map<String, List<String[]>> allTightSignatures = new HashMap<>();
-    private Map<String, List<String[]>> allLooseSignatures = new HashMap<>();
+    private Map<String, List<MethodSignature>> allTightSignatures = new HashMap<>();
+    private Map<String, List<MethodSignature>> allLooseSignatures = new HashMap<>();
     private Map<String, LibraryInfo> allLibraryInfos = new HashMap<>();
     private int allSignatureCount = 0;
 
@@ -87,8 +87,7 @@ public class SignatureFile {
 
         // store method signatures
         for(MethodSignature ml: mllist) {
-            storeMethodHash(ml.getMhash_loose(), ml.getMhash_tight(), ml.getCname(), ml.getMname(), ml.getShorty(),
-                    ml.getPrototype(), ml.getCaller());
+            storeMethodHash(ml);
         }
         return true;
     }
@@ -100,17 +99,15 @@ public class SignatureFile {
         return null;
     }
 
-    private void storeMethodHash(String mhash_loose, String mhash_tight, String cname, String mname, String shorty,
-            String prototype, String caller) {
-        String[] sigs = new String[]{cname, mname, shorty, prototype, caller};
-        if(!allTightSignatures.containsKey(mhash_tight)) {
-            allTightSignatures.put(mhash_tight, new ArrayList<String[]>());
+    private void storeMethodHash(MethodSignature sig) {
+        if(!allTightSignatures.containsKey(sig.getMhash_tight())) {
+            allTightSignatures.put(sig.getMhash_tight(), new ArrayList<>());
         }
-        allTightSignatures.get(mhash_tight).add(sigs);
-        if(!allLooseSignatures.containsKey(mhash_loose)) {
-            allLooseSignatures.put(mhash_loose, new ArrayList<String[]>());
+        allTightSignatures.get(sig.getMhash_tight()).add(sig);
+        if(!allLooseSignatures.containsKey(sig.getMhash_loose())) {
+            allLooseSignatures.put(sig.getMhash_loose(), new ArrayList<>());
         }
-        allLooseSignatures.get(mhash_loose).add(sigs);
+        allLooseSignatures.get(sig.getMhash_loose()).add(sig);
     }
 
     /**
@@ -119,7 +116,7 @@ public class SignatureFile {
      * @return a Map (Key: the tight method signature. Value: a list of string array {libname,
      *         cname, mname, shorty})
      */
-    public Map<String, List<String[]>> getAllTightSignatures() {
+    public Map<String, List<MethodSignature>> getAllTightSignatures() {
         return allTightSignatures;
     }
 
@@ -129,7 +126,7 @@ public class SignatureFile {
      * @return a Map (Key: the loose method signature. Value: a list of string array {libname,
      *         cname, mname, shorty})
      */
-    public Map<String, List<String[]>> getAllLooseSignatures() {
+    public Map<String, List<MethodSignature>> getAllLooseSignatures() {
         return allLooseSignatures;
     }
 

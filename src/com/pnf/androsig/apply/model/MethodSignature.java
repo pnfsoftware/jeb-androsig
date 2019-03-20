@@ -36,6 +36,7 @@ public class MethodSignature {
     private String mhash_tight;
     private String mhash_loose;
     private String caller;
+    private String versions;
 
     /**
      * Get the signature of the class.
@@ -109,6 +110,26 @@ public class MethodSignature {
         return caller;
     }
 
+    public String[] getVersions() {
+        if(versions == null) {
+            return null;
+        }
+        return versions.split(";");
+    }
+
+    public MethodSignature() {
+    }
+
+    public MethodSignature(String cname, String mname, String shorty, String prototype, String caller,
+            String versions) {
+        this.cname = cname;
+        this.mname = mname;
+        this.shorty = shorty;
+        this.prototype = prototype;
+        this.caller = caller;
+        this.versions = versions;
+    }
+
     /**
      * Get the information of one line in sig files.
      * 
@@ -118,7 +139,7 @@ public class MethodSignature {
      */
     public static MethodSignature parse(String line) {
         String[] tokens = line.trim().split(",");
-        if(tokens.length != 8) {
+        if(tokens.length < 8) {
             return null;
         }
 
@@ -158,6 +179,10 @@ public class MethodSignature {
         else {
             ml.caller = "";
         }
+        // signature v2
+        if(tokens.length > 8) {
+            ml.versions = tokens[8];
+        }
         return ml;
     }
 
@@ -183,7 +208,7 @@ public class MethodSignature {
 
     public static String[] parseNative(String line) {
         String[] tokens = line.trim().split(",");
-        if(tokens.length != 8) {
+        if(tokens.length < 8) {
             return null;
         }
         return tokens;
@@ -221,5 +246,45 @@ public class MethodSignature {
 
     public static String getMethodName(String[] signatureLine) {
         return signatureLine[1];
+    }
+
+    public static String[] getVersions(String[] signatureLine) {
+        if(signatureLine.length <= 8 || signatureLine[8] == null) {
+            return null;
+        }
+        return signatureLine[8].split(";");
+    }
+
+    // TODO remove all this (only for transition)
+    public static String getTightSignature(MethodSignature signatureLine) {
+        return signatureLine.mhash_tight;
+    }
+
+    public static String getLooseSignature(MethodSignature signatureLine) {
+        return signatureLine.mhash_loose;
+    }
+
+    public static String getShorty(MethodSignature signatureLine) {
+        return signatureLine.shorty;
+    }
+
+    public static String getPrototype(MethodSignature signatureLine) {
+        return signatureLine.prototype;
+    }
+
+    public static String getClassname(MethodSignature signatureLine) {
+        return signatureLine.cname;
+    }
+
+    public static String getMethodName(MethodSignature signatureLine) {
+        return signatureLine.mname;
+    }
+
+    public static String[] getVersions(MethodSignature signatureLine) {
+        return signatureLine.getVersions();
+    }
+
+    public String[] toTokens() {
+        return new String[]{cname, mname, shorty, prototype, caller};
     }
 }

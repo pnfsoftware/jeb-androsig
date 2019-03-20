@@ -150,8 +150,8 @@ public class StructureInfo {
             dbMatcher.storeMatchedClassesAndMethods(unit, dexHashCodeList, false);
             renameMatchedClassesAndMethods(unit);
             renameMatchedPackages(unit);
-            Map<Integer, String> newClasses = dbMatcher.postProcessRenameClasses(unit, dexHashCodeList, true);
-            Map<Integer, String> newMethods = dbMatcher.postProcessRenameMethods(unit, dexHashCodeList, true);
+            Map<Integer, String> newClasses = dbMatcher.postProcessRenameClasses(unit, dexHashCodeList, false);
+            Map<Integer, String> newMethods = dbMatcher.postProcessRenameMethods(unit, dexHashCodeList, false);
             postProcess(unit, newClasses, newMethods);
 
             logger.info("SIZE: " + dbMatcher.getMatchedClasses().size());
@@ -176,9 +176,12 @@ public class StructureInfo {
 
         for(Entry<Integer, String> each: newMethods.entrySet()) {
             IDexMethod method = unit.getMethod(each.getKey());
-            StructureHandler.rename(unit, each.getValue(), method.getItemId());
-            MetadataGroupHandler.getCodeGroupMethod(unit).setData(method.getSignature(false),
-                    ItemClassIdentifiers.CODE_LIBRARY.getId());
+            String temp = each.getValue();
+            if(temp != null && !method.getName(true).equals(temp)) {
+                StructureHandler.rename(unit, each.getValue(), method.getItemId());
+                MetadataGroupHandler.getCodeGroupMethod(unit).setData(method.getSignature(false),
+                        ItemClassIdentifiers.CODE_LIBRARY.getId());
+            }
         }
     }
 
