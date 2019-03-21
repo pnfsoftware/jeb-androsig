@@ -18,6 +18,8 @@
 
 package com.pnf.androsig.apply.model;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -119,6 +121,13 @@ public class StructureInfo {
 
         final long endTime1 = System.currentTimeMillis();
         logger.info("Signature matching 2 start completed! (Execution Time: " + (endTime1 - startTime1) / 1000 + "s)");
+        if(logger.getEnabledLevel() >= GlobalLog.LEVEL_DEBUG) {
+            List<String> mapped = new ArrayList<>(dbMatcher.getMatchedClasses().values());
+            Collections.sort(mapped);
+            for(String cl: mapped) {
+                logger.debug("Mapped class: %s", cl);
+            }
+        }
 
         // Move exceptional classes
         moveExceptionalClasses(unit);
@@ -256,7 +265,7 @@ public class StructureInfo {
             }
             String classSigPath = dbMatcher.getMatchedClasses().get(classIndex);
             // If the class is located in the right package, continue
-            if(classSigPath.equals(eClass.getSignature(true))) {
+            if(classSigPath.equals(eClass.getSignature(true)) || classSigPath.contains("$")) {
                 continue;
             }
             String packageSigPath = classSigPath.substring(0, classSigPath.lastIndexOf("/")) + ";";

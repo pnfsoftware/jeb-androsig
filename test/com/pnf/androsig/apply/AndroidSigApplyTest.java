@@ -11,7 +11,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import com.pnf.androsig.JebContext;
@@ -153,80 +152,6 @@ public class AndroidSigApplyTest {
             if(generated.exists()) {
                 generated.delete();
             }
-            if(generatedReport.exists()) {
-                generatedReport.delete();
-            }
-        }
-    }
-
-    @Ignore
-    @Test
-    public void testNonObfuscated() throws JebException, IOException {
-        new File("testdata/out/android_sigs").mkdirs();
-        File generated = new File("testdata/out/android_sigs/support-fragment-28_0_0.sig");
-        File orig = new File("testdata/sig/support-fragment-28_0_0.sig");
-        IO.copyFile(orig, generated, true);
-        File generatedReport = new File(System.getProperty("java.io.tmpdir"), "androsig-mapping.txt");
-
-        try {
-            IEnginesContext context = JebContext.getEnginesContext();
-            context.getDataProvider().getPluginStore().getStoreLocation();
-            IRuntimeProject prj = context.loadProject("sig-gen-test.dex");
-            File file = new File("testdata/apk", "app-release-unsigned.apk");
-            IArtifact artifact = new Artifact(file.getName(), new FileInput(file));
-            /*ILiveArtifact art =*/ prj.processArtifact(artifact);
-
-            AndroidSigApplyPlugin plugin = new AndroidSigApplyPlugin();
-            plugin.execute(context, new HashMap<>());
-
-            // assertions
-            assertTrue(
-                    IO.compareFiles(new File("testdata/mapping", "androsig-mapping-releaseapk.txt"), generatedReport));
-            // TODO validate classes are updated
-        }
-        finally {
-            // clean up
-            if(generated.exists()) {
-                generated.delete();
-            }
-            if(generatedReport.exists()) {
-                generatedReport.delete();
-            }
-        }
-    }
-
-    @Ignore
-    @Test
-    public void testObfuscated() throws JebException, IOException {
-        new File("testdata/out/android_sigs").mkdirs();
-        File generated = new File("testdata/out/android_sigs/support-fragment-28_0_0.sig");
-        File orig = new File("testdata/sig/support-fragment-28_0_0.sig");
-        IO.copyFile(orig, generated, true);
-        File generatedReport = new File(System.getProperty("java.io.tmpdir"), "androsig-mapping.txt");
-
-        try {
-            IEnginesContext context = JebContext.getEnginesContext();
-            context.getDataProvider().getPluginStore().getStoreLocation();
-            IRuntimeProject prj = context.loadProject("sig-gen-test.dex");
-            File file = new File("testdata/apk", "app-release-unsigned--pg-repackageclasses.apk");
-            IArtifact artifact = new Artifact(file.getName(), new FileInput(file));
-            /*ILiveArtifact art =*/ prj.processArtifact(artifact);
-
-            AndroidSigApplyPlugin plugin = new AndroidSigApplyPlugin();
-            plugin.execute(context, new HashMap<>());
-
-            // assertions
-            assertTrue(
-                    IO.compareFiles(new File("testdata/mapping", "androsig-mapping-releasepgapk.txt"),
-                            generatedReport));
-            // TODO validate classes are updated
-        }
-        finally {
-            // clean up
-            if(generated.exists()) {
-                generated.delete();
-            }
-            generatedReport.renameTo(new File(System.getProperty("java.io.tmpdir"), "androsig-mapping-idd.txt"));
             if(generatedReport.exists()) {
                 generatedReport.delete();
             }

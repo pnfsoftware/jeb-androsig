@@ -16,6 +16,8 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.TreeMap;
 
 import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.LibraryInfo;
@@ -46,18 +48,20 @@ public class ReportHandler {
             List<? extends IDexClass> classes = unit.getClasses();
             if(classes == null || classes.size() == 0) {
                 return;
-            }       
+            }
+            Map<String, IDexClass> classesMapped = new TreeMap<>();
             for(IDexClass eClass: classes) {
-                List<? extends IDexMethod> methods = eClass.getMethods();
+                String classPath = matchedClasses.get(eClass.getIndex());
+                if(classPath != null) {
+                    classesMapped.put(classPath, eClass);
+                }
+            }
+            for(Entry<String, IDexClass> cl: classesMapped.entrySet()) {
+                String eClassSigFalse = cl.getValue().getSignature(false);
+                writer.write(eClassSigFalse + " -> " + cl.getKey() + "\n");
+                List<? extends IDexMethod> methods = cl.getValue().getMethods();
                 if(methods == null || methods.size() == 0)
                     continue;
-                String classPath = matchedClasses.get(eClass.getIndex());
-                String eClassSigFalse = eClass.getSignature(false);
-                if(classPath == null) {
-                    continue;
-                }else {
-                    writer.write(eClassSigFalse + " -> " + classPath + "\n");
-                }
                 double total = 0;
                 double matched = 0;
                 for(IDexMethod m: methods) {
@@ -206,14 +210,15 @@ public class ReportHandler {
             return;
         }
         for(IDexClass eClass: classes) {
-            List<? extends IDexMethod> methods = eClass.getMethods();
-            if(methods == null || methods.size() == 0)
-                continue;
             String classPath = matchedClasses.get(eClass.getIndex());
             if(classPath == null) {
                 classMap.put(eClass.getSignature(false), "null");
             }else {
                 classMap.put(eClass.getSignature(false), classPath);
+            }
+            List<? extends IDexMethod> methods = eClass.getMethods();
+            if(methods == null || methods.size() == 0) {
+                continue;
             }
             Map<String, String> mMap = new HashMap<>();
             for(IDexMethod m: methods) {
@@ -223,7 +228,8 @@ public class ReportHandler {
                 String methodPath = matchedMethods.get(m.getIndex());
                 if(methodPath == null) {
                     mMap.put(m.getSignature(false), "null");
-                }else {
+                }
+                else {
                     mMap.put(m.getSignature(false), m.getSignature(true));
                 }
             }
