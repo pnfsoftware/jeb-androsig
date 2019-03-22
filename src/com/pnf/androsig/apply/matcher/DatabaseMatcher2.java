@@ -21,6 +21,7 @@ import com.pnf.androsig.apply.model.DexHashcodeList;
 import com.pnf.androsig.apply.model.LibraryInfo;
 import com.pnf.androsig.apply.model.MethodSignature;
 import com.pnf.androsig.apply.model.SignatureFile;
+import com.pnf.androsig.common.SignatureHandler;
 import com.pnfsoftware.jeb.core.units.code.IInstruction;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
@@ -28,7 +29,6 @@ import com.pnfsoftware.jeb.core.units.code.android.dex.IDexCodeItem;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethodData;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexPrototype;
-import com.pnfsoftware.jeb.util.base.JavaUtil;
 import com.pnfsoftware.jeb.util.format.Strings;
 import com.pnfsoftware.jeb.util.logging.GlobalLog;
 import com.pnfsoftware.jeb.util.logging.ILogger;
@@ -48,7 +48,6 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
 class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
     private final ILogger logger = GlobalLog.getLogger(DatabaseMatcher2.class);
 
-    private static final String INVALID_MATCH = "INVALID";
     private DatabaseMatcherParameters params;
     private DatabaseReference ref;
     // class index --- classPath_sig
@@ -57,10 +56,11 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
     private Map<Integer, String> matchedClassesFile = new HashMap<>();
     // method index --- methodName_sig
     private Map<Integer, String> matchedMethods = new HashMap<>();
+    private Map<Integer, MethodSignature> matchedSigMethods = new HashMap<>();
 
-    private Map<String, String> contextMatches = new HashMap<>();
+    private ContextMatches contextMatches = new ContextMatches();
 
-    // private Map<Integer, Map<Integer, Integer>> apkCallerLists = new HashMap<>();
+    private Map<Integer, Map<Integer, Integer>> apkCallerLists = null;
 
     // **** Rebuild structure ****
     // Check duplicate classes (if two or more classes match to the same library class, we need to avoid rename these classes)
@@ -115,12 +115,32 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
 
         // expand: 
         for(Entry<String, String> entry: contextMatches.entrySet()) {
-            if(entry.getValue().equals(INVALID_MATCH)) {
+            if(!contextMatches.isValid(entry.getValue())) {
                 continue;
             }
             IDexClass cl = unit.getClass(entry.getKey());
             if(cl != null) {
-                matchedClasses.put(cl.getIndex(), entry.getValue());
+                String newName = matchedClasses.get(cl.getIndex());
+                if(newName == null) {
+                    matchedClasses.put(cl.getIndex(), entry.getValue());
+                }
+                else if(!newName.equals(entry.getValue())) {
+                    logger.warn("Conflict for class, can not determine best name between %s and %s", newName,
+                            entry.getValue());
+                }
+            }
+        }
+        for(Entry<Integer, String> entry: contextMatches.methodsEntrySet()) {
+            //if(!contextMatches.isValid(entry.getValue())) { // TODO
+            //    continue;
+            //}
+            String newName = matchedMethods.get(entry.getKey());
+            if(newName == null) {
+                matchedMethods.put(entry.getKey(), entry.getValue());
+            }
+            else if(!newName.equals(entry.getValue())) {
+                logger.warn("Conflict for method, can not determine best name between %s and %s", newName,
+                        entry.getValue());
             }
         }
 
@@ -133,6 +153,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                     // remove methods
                     for(Integer eMethod: dupMethods.get(e)) {
                         matchedMethods.remove(eMethod);
+                        matchedSigMethods.remove(eMethod);
                     }
                 }
             }
@@ -211,7 +232,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                         }
                     }
                     else {
-                        contextMatches.put(originalSignature, cname);
+
+                        contextMatches.saveMatch(originalSignature, cname, name);
                         return null;
                     }
                 }
@@ -310,14 +332,15 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
 
                 List<MethodSignature> sigs = ref.getSignatureLines(cand.file, mhash_tight, true);
                 if(sigs != null) {
-                    strArray = findMethodName(sigs, prototypes, shorty, cand.className, cand.classPathMethod.values());
+                    strArray = findMethodName(dex, sigs, prototypes, shorty, cand.className,
+                            cand.classPathMethod.values(), eMethod);
                 }
                 if(strArray == null) {
                     String mhash_loose = dexHashCodeList.getLooseHashcode(eMethod);
                     sigs = ref.getSignatureLines(cand.file, mhash_loose, false);
                     if(sigs != null) {
-                        strArray = findMethodName(sigs, prototypes, shorty, cand.className,
-                                cand.classPathMethod.values());
+                        strArray = findMethodName(dex, sigs, prototypes, shorty, cand.className,
+                                cand.classPathMethod.values(), eMethod);
                     }
                 }
                 if(strArray != null) {
@@ -506,7 +529,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                         int lastIndex = newClass.lastIndexOf('$');
                         String newClassName = newClass.substring(newClass.lastIndexOf('$'));
                         if(!oldClass.endsWith(newClassName)) {
-                            saveMatch(oldClass, newClass, innerMatch.className);
+                            contextMatches.saveMatch(oldClass, newClass, innerMatch.className);
                         }
                         oldClass = oldClass.substring(0, oldClass.lastIndexOf("$")) + ";";
                         newClass = newClass.substring(0, lastIndex) + ";";
@@ -524,6 +547,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
             String methodName = MethodSignature.getMethodName(methodName_method.getValue());
             if(!Strings.isBlank(methodName) && !innerMatch.doNotRenameIndexes.contains(methodName_method.getKey())) {
                 matchedMethods.put(methodName_method.getKey(), methodName);
+                matchedSigMethods.put(methodName_method.getKey(), methodName_method.getValue());
             } // else several method name match, need more context
         }
 
@@ -553,124 +577,17 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                     if(prototypes.equals(MethodSignature.getPrototype(strArray))) {
                         continue;
                     }
-                    saveParamMatching(prototypes, MethodSignature.getPrototype(strArray), innerMatch.className,
-                            MethodSignature.getMethodName(strArray));
+                    contextMatches.saveParamMatching(prototypes, MethodSignature.getPrototype(strArray),
+                            innerMatch.className, MethodSignature.getMethodName(strArray));
                 }
             }
             else {
                 for(int e: temp1) {
                     matchedMethods.remove(e);
+                    matchedSigMethods.remove(e);
                 }
             }
         }
-    }
-
-    private void saveParamMatching(String oldProto, String newProto, String className, String methodName) {
-        // extract return type
-        String[] tokens1 = oldProto.substring(1).split("\\)");
-        if(newProto.isEmpty()) {
-            // several candidates: TODO check versions or wait for final matching
-            return;
-        }
-        String[] tokens2 = newProto.substring(1).split("\\)");
-        if(tokens1.length != 2 || tokens2.length != 2) {
-            return;
-        }
-        List<String> oldClasses = parseSignatureParameters(tokens1[0]);
-        oldClasses.add(tokens1[1]);
-        List<String> newClasses = parseSignatureParameters(tokens2[0]);
-        newClasses.add(tokens2[1]);
-        if(oldClasses.size() != newClasses.size()) {
-            // parameter non use removed? too risky
-            return;
-        }
-        for(int i = 0; i < oldClasses.size(); i++) {
-            String oldClass = oldClasses.get(i);
-            String newClass = newClasses.get(i);
-            if(!oldClass.equals(newClass) && oldClass.endsWith(";")) {
-                // return value updated
-                while(oldClass.charAt(0) == '[') {
-                    if(newClass.charAt(0) != '[') {
-                        // argument swaps?
-                        return;
-                    }
-                    oldClass = oldClass.substring(1);
-                    newClass = newClass.substring(1);
-                }
-                while(newClass.contains("$") && oldClass.contains("$")) {
-                    int lastIndex = newClass.lastIndexOf('$');
-                    String newClassName = newClass.substring(newClass.lastIndexOf('$'));
-                    if (!oldClass.endsWith(newClassName)) {
-                        saveMatch(oldClass, newClass, className, methodName);
-                    }
-                    oldClass = oldClass.substring(0, oldClass.lastIndexOf("$")) + ";";
-                    newClass = newClass.substring(0, lastIndex) + ";";
-                }
-                if(!oldClass.equals(newClass)) {
-                    saveMatch(oldClass, newClass, className, methodName);
-                }
-            }
-        }
-    }
-
-    private void saveMatch(String oldClass, String newClass, String innerClass) {
-        String value = contextMatches.get(oldClass);
-        if(value != null) {
-            if(value.equals(INVALID_MATCH)) {
-                return;
-            }
-            else if(!value.equals(newClass)) {
-                contextMatches.put(oldClass, INVALID_MATCH);
-                return;
-            }
-        }
-        contextMatches.put(oldClass, newClass);
-        logger.i("Found match class: %s from innerClass %s", newClass, innerClass);
-    }
-
-    private void saveMatch(String oldClass, String newClass, String className, String methodName) {
-        String value = contextMatches.get(oldClass);
-        if(value != null) {
-            if(value.equals(INVALID_MATCH)) {
-                return;
-            }
-            else if(!value.equals(newClass)) {
-                contextMatches.put(oldClass, INVALID_MATCH);
-                return;
-            }
-        }
-        contextMatches.put(oldClass, newClass);
-        logger.i("Found match class: %s by param matching from %s->%s", newClass, className, methodName);
-    }
-
-    private static List<String> parseSignatureParameters(String parameters) {
-        List<String> params = new ArrayList<>();
-        int i = 0;
-        while(i < parameters.length()) {
-            int begin = i;
-            while(parameters.charAt(i) == '[') {
-                i++;
-            }
-            char type = parameters.charAt(i);
-            if(type == 'L') {
-                int end = parameters.indexOf(';', i);
-                if(end < 0) {
-                    // invalid sig
-                    return null;
-                }
-                params.add(parameters.substring(begin, end + 1));
-                i = end + 1;
-            }
-            else if(JavaUtil.letterToPrimitive(type + "") != null) {
-                params.add(parameters.substring(begin, i + 1));
-                i++;
-            }
-            else {
-                // invalid param
-                return null;
-            }
-        }
-        return params;
     }
 
     private boolean f(IDexUnit unit, IDexClass eClass, List<Integer> matchedMethods) {
@@ -727,6 +644,39 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
     @Override
     public Map<Integer, String> postProcessRenameMethods(IDexUnit unit, DexHashcodeList dexHashCodeList,
             boolean firstRound) {
+        apkCallerLists = new HashMap<>();
+        SignatureHandler.loadAllCallerLists(unit, apkCallerLists);
+        for(Entry<Integer, MethodSignature> match: matchedSigMethods.entrySet()) {
+            Map<Integer, Integer> callers = apkCallerLists.get(match.getKey());
+            Map<String, Integer> calls = new HashMap<>();
+            if(callers != null) {
+                for(Entry<Integer, Integer> caller: callers.entrySet()) {
+                    IDexMethod m = unit.getMethod(caller.getKey());
+                    Integer count = caller.getValue();
+                    calls.put(m.getSignature(true), count);
+                }
+            }
+            Map<String, Integer> expectedCallers = match.getValue().getTargetCaller();
+            if(expectedCallers.size() == 0 && calls.size() == 0) {
+                continue;
+            }
+            if(expectedCallers.size() == 0) {
+                // TODO wrong MethodSignature? (merged)
+                continue;
+            }
+            if(expectedCallers.size() != calls.size()) {
+                // seems a bit dangerous
+                continue;
+            }
+            if(expectedCallers.size() == 1) {
+                String expected = expectedCallers.keySet().iterator().next();
+                String current = calls.keySet().iterator().next();
+                if(expectedCallers.get(expected).intValue() == calls.get(current)) {
+                    contextMatches.saveCallerMatching(unit, expected, current);
+                }
+            }
+            // TODO match several
+        }
         return new HashMap<>();
     }
 
@@ -808,13 +758,15 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                     for(String file: files) {
                         List<MethodSignature> sigs = ref.getSignatureLines(file, mhash_tight, true);
                         if(sigs != null) {
-                            strArray = findMethodName(sigs, prototypes, shorty, className, alreadyMatches);
+                            strArray = findMethodName(dex, sigs, prototypes, shorty, className, alreadyMatches,
+                                    eMethod);
                         }
                         if(strArray == null || MethodSignature.getMethodName(strArray).isEmpty()) {
                             String mhash_loose = dexHashCodeList.getLooseHashcode(eMethod);
                             sigs = ref.getSignatureLines(file, mhash_loose, false);
                             if(sigs != null) {
-                                strArray = findMethodName(sigs, prototypes, shorty, className, alreadyMatches);
+                                strArray = findMethodName(dex, sigs, prototypes, shorty, className, alreadyMatches,
+                                        eMethod);
                             }
                         }
                         if(strArray != null) {
@@ -847,7 +799,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                                 sigs.addAll(s);
                             }
                             if(!sigs.isEmpty()) {
-                                strArray = findMethodName(sigs, prototypes, shorty, className, alreadyMatches);
+                                strArray = findMethodName(dex, sigs, prototypes, shorty, className, alreadyMatches,
+                                        eMethod);
                             }
                             if(strArray != null) {
                                 String newMethodName = MethodSignature.getMethodName(strArray);
@@ -872,60 +825,49 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
 
                     if(!Strings.isBlank(methodName) && !eMethod.getName(true).equals(methodName)) {
                         matchedMethods.put(eMethod.getIndex(), methodName);
+                        matchedSigMethods.put(eMethod.getIndex(), strArray);
                         alreadyMatches.add(strArray);
 
                         // postprocess: reinject class
                         if(!prototypes.equals(MethodSignature.getPrototype(strArray))) {
-                            saveParamMatching(prototypes, MethodSignature.getPrototype(strArray), className,
-                                    methodName);
+                            contextMatches.saveParamMatching(prototypes, MethodSignature.getPrototype(strArray),
+                                    className, methodName);
                         }
                     }
                 }
             }
             while(matchedMethodsSize != alreadyMatches.size());
         }
+
         return new HashMap<>();
     }
 
-    private MethodSignature findMethodName(List<MethodSignature> sigs, String proto, String shorty, String classPath,
-            Collection<MethodSignature> methods) {
+    private MethodSignature findMethodName(IDexUnit dex, List<MethodSignature> sigs, String proto, String shorty,
+            String classPath,
+            Collection<MethodSignature> methods, IDexMethod eMethod) {
+        MethodSignature sig = findMethodName(dex, sigs, proto, true, classPath, methods, eMethod);
+        if(sig != null) {
+            return sig;
+        }
+        return findMethodName(dex, sigs, shorty, false, classPath, methods, eMethod);
+    }
+
+    private MethodSignature findMethodName(IDexUnit dex, List<MethodSignature> sigs, String proto, boolean prototype,
+            String classPath, Collection<MethodSignature> methods, IDexMethod eMethod) {
         List<MethodSignature> results = new ArrayList<>();
         proto: for(MethodSignature strArray: sigs) {
-            if(!MethodSignature.getPrototype(strArray).equals(proto)) {
+            if(!(prototype ? strArray.getPrototype(): strArray.getShorty()).equals(proto)) {
                 continue;
             }
             if(!MethodSignature.getClassname(strArray).equals(classPath)) {
                 continue;
             }
             for(MethodSignature alreadyProcessed: methods) {
-                if(MethodSignature.getPrototype(alreadyProcessed).equals(MethodSignature.getPrototype(strArray))
-                        && MethodSignature.getMethodName(alreadyProcessed)
-                                .equals(MethodSignature.getMethodName(strArray))) {
+                if((prototype ? alreadyProcessed.getPrototype().equals(strArray.getPrototype())
+                        : alreadyProcessed.getShorty().equals(strArray.getShorty()))
+                        && alreadyProcessed.getMname().equals(strArray.getMname())) {
                     // method has already a match
                     continue proto;
-                }
-            }
-            results.add(strArray);
-        }
-        if(results.size() == 1) {
-            return results.get(0);
-        }
-        else if(results.size() > 1) {
-            return mergeSignature(results);
-        }
-        shorty: for(MethodSignature strArray: sigs) {
-            if(!MethodSignature.getShorty(strArray).equals(shorty)) {
-                continue;
-            }
-            if(!MethodSignature.getClassname(strArray).equals(classPath)) {
-                continue;
-            }
-            for(MethodSignature alreadyProcessed: methods) {
-                if(MethodSignature.getShorty(alreadyProcessed).equals(MethodSignature.getShorty(strArray))
-                        && MethodSignature.getMethodName(alreadyProcessed)
-                                .equals(MethodSignature.getMethodName(strArray))) {
-                    // method has already a match
-                    continue shorty;
                 }
             }
             results.add(strArray);
@@ -954,7 +896,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                     String methodMatch = result[i] + " OR " + res[i];
                     result[i] = ""; // two lines differ here: may loose callers
                     if(i == 1) {
-                        logger.i("%s: There are several methods matching for signature %s: %s", ress.getCname(),
+                        logger.debug("%s: There are several methods matching for signature %s: %s", ress.getCname(),
                                 ress.getPrototype(), methodMatch);
                     }
                     break;

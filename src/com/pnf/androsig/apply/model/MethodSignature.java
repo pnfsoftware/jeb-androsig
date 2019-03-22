@@ -18,6 +18,9 @@
 
 package com.pnf.androsig.apply.model;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import com.pnf.androsig.common.SignatureHandler;
 import com.pnfsoftware.jeb.util.encoding.Conversion;
 
@@ -109,6 +112,25 @@ public class MethodSignature {
     public String getCaller() {
         return caller;
     }
+
+    public Map<String, Integer> getTargetCaller() {
+        return getTargetCaller(caller);
+    }
+
+    public static Map<String, Integer> getTargetCaller(String caller) {
+        Map<String, Integer> targetCallerList = new HashMap<>();
+        if(caller.isEmpty()) {
+            return targetCallerList;
+        }
+        String[] targetCallers = caller.split("\\|");
+        targetCallerList.clear();
+        for(int i = 0; i < targetCallers.length; i++) {
+            String[] tokens = targetCallers[i].split("=");
+            targetCallerList.put(tokens[0], Integer.parseInt(tokens[1]));
+        }
+        return targetCallerList;
+    }
+
 
     public String[] getVersions() {
         if(versions == null) {

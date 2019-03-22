@@ -210,7 +210,6 @@ class DatabaseMatcher implements IDatabaseMatcher {
 
             // Go through each signature
             TreeMap<Integer, ArrayList<String[]>> map = new TreeMap<>(Collections.reverseOrder());
-            Map<String, Integer> targetCallerList = new HashMap<>();
 
             for(MethodSignature msig: elts) {
                 String[] strArray = msig.toTokens();
@@ -223,12 +222,7 @@ class DatabaseMatcher implements IDatabaseMatcher {
                 }
                 flag = true;
                 int count = 0;
-                String[] targetCallers = targetCaller.split("\\|");
-                targetCallerList.clear();
-                for(int i = 0; i < targetCallers.length; i++) {
-                    targetCallerList.put(targetCallers[i].split("=")[0],
-                            Integer.parseInt(targetCallers[i].split("=")[1]));
-                }
+                Map<String, Integer> targetCallerList = MethodSignature.getTargetCaller(targetCaller);
                 for(Map.Entry<Integer, Integer> each: callerList.entrySet()) {
                     String methodPath = dex.getMethod(each.getKey()).getSignature(true);
                     if(targetCallerList.containsKey(methodPath)) {

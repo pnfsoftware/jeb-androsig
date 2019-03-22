@@ -107,7 +107,7 @@ public class SignatureHandler {
         sig = null;
         return Formatter.byteArrayToHexString(h).toLowerCase();
     }
-    
+
     /**
      * Generate caller list based on methods relationship and store them to hashmap.
      * eg: method1 call method2 2 times and method3 4 times
@@ -145,51 +145,74 @@ public class SignatureHandler {
                         continue;
                     }
                 }
-                IDexMethodData md = m.getData();
-                if(md == null) {
+                loadCallerList(unit, allCallerLists, m);
+            }
+        }
+    }
+
+    public static void loadAllCallerLists(IDexUnit unit, Map<Integer, Map<Integer, Integer>> allCallerLists) {
+        allCallerLists.clear();
+        List<? extends IDexClass> classes = unit.getClasses();
+        if(classes == null || classes.size() == 0) {
+            return;
+        }
+        for(IDexClass eClass: classes) {
+            List<? extends IDexMethod> methods = eClass.getMethods();
+            if(methods == null || methods.size() == 0)
+                continue;
+            for(IDexMethod m: methods) {
+                if(!m.isInternal()) {
                     continue;
                 }
-                IDexCodeItem ci = md.getCodeItem();
-                if(ci == null) {
-                    continue;
-                }
-                for(IDalvikInstruction insn: ci.getInstructions()) {
-                    if(!insn.getMnemonic().contains("invoke")) {
-                        continue;
-                    }
-                    for(IDalvikInstructionParameter param: insn.getParameters()) {
-                        if(param.getType() == IDalvikInstruction.TYPE_IDX) {
-                            int poolIndex = insn.getParameterIndexType();
-                            if(poolIndex == IDalvikInstruction.INDEX_TO_METHOD) {
-                                int paraValue = (int)param.getValue();
-                                if(paraValue > unit.getMethods().size()) {
-                                    continue;
-                                }
-                                // Store method info
-                                Map<Integer, Integer> temp = allCallerLists.get(paraValue);
-                                int methodIndex = m.getIndex();
-                                if(temp != null) {
-                                    Integer times = temp.get(methodIndex);
-                                    if(times != null) {
-                                        temp.put(methodIndex, times + 1);
-                                    }
-                                    else {
-                                        temp.put(methodIndex, 1);
-                                    }
-                                }
-                                else {
-                                    HashMap<Integer, Integer> temp1 = new HashMap<Integer, Integer>();
-                                    temp1.put(methodIndex, 1);
-                                    allCallerLists.put(paraValue, temp1);
-                                }
+                loadCallerList(unit, allCallerLists, m);
+            }
+        }
+    }
+
+    public static void loadCallerList(IDexUnit unit, Map<Integer, Map<Integer, Integer>> allCallerLists, IDexMethod m) {
+        IDexMethodData md = m.getData();
+        if(md == null) {
+            return;
+        }
+        IDexCodeItem ci = md.getCodeItem();
+        if(ci == null) {
+            return;
+        }
+        for(IDalvikInstruction insn: ci.getInstructions()) {
+            if(!insn.getMnemonic().contains("invoke")) {
+                continue;
+            }
+            for(IDalvikInstructionParameter param: insn.getParameters()) {
+                if(param.getType() == IDalvikInstruction.TYPE_IDX) {
+                    int poolIndex = insn.getParameterFirstIndexType();
+                    if(poolIndex == IDalvikInstruction.INDEX_TO_METHOD) {
+                        int paraValue = (int)param.getValue();
+                        if(paraValue > unit.getMethods().size()) {
+                            continue;
+                        }
+                        // Store method info
+                        Map<Integer, Integer> temp = allCallerLists.get(paraValue);
+                        int methodIndex = m.getIndex();
+                        if(temp != null) {
+                            Integer times = temp.get(methodIndex);
+                            if(times != null) {
+                                temp.put(methodIndex, times + 1);
                             }
+                            else {
+                                temp.put(methodIndex, 1);
+                            }
+                        }
+                        else {
+                            HashMap<Integer, Integer> temp1 = new HashMap<>();
+                            temp1.put(methodIndex, 1);
+                            allCallerLists.put(paraValue, temp1);
                         }
                     }
                 }
             }
         }
     }
-    
+
     /**
      * Get the signature folder.
      * 
