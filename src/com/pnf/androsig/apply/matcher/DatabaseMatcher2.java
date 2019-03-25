@@ -76,6 +76,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
     public DatabaseMatcher2(DatabaseMatcherParameters params, DatabaseReference ref) {
         this.params = params;
         this.ref = ref;
+        contextMatches.setDbMatcher(this);
     }
 
     @Override
@@ -131,9 +132,9 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
             }
         }
         for(Entry<Integer, String> entry: contextMatches.methodsEntrySet()) {
-            //if(!contextMatches.isValid(entry.getValue())) { // TODO
-            //    continue;
-            //}
+            if(!contextMatches.isValid(entry.getValue())) {
+                continue;
+            }
             String newName = matchedMethods.get(entry.getKey());
             if(newName == null) {
                 matchedMethods.put(entry.getKey(), entry.getValue());
@@ -233,7 +234,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                     }
                     else {
 
-                        contextMatches.saveMatch(originalSignature, cname, name);
+                        contextMatches.saveClassMatch(originalSignature, cname, name);
                         return null;
                     }
                 }
@@ -529,7 +530,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                         int lastIndex = newClass.lastIndexOf('$');
                         String newClassName = newClass.substring(newClass.lastIndexOf('$'));
                         if(!oldClass.endsWith(newClassName)) {
-                            contextMatches.saveMatch(oldClass, newClass, innerMatch.className);
+                            contextMatches.saveClassMatch(oldClass, newClass, innerMatch.className);
                         }
                         oldClass = oldClass.substring(0, oldClass.lastIndexOf("$")) + ";";
                         newClass = newClass.substring(0, lastIndex) + ";";
@@ -664,18 +665,17 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                 // TODO wrong MethodSignature? (merged)
                 continue;
             }
-            if(expectedCallers.size() != calls.size()) {
-                // seems a bit dangerous
-                continue;
-            }
-            if(expectedCallers.size() == 1) {
+            if(expectedCallers.size() == 1 && calls.size() == 1) {
                 String expected = expectedCallers.keySet().iterator().next();
                 String current = calls.keySet().iterator().next();
                 if(expectedCallers.get(expected).intValue() == calls.get(current)) {
                     contextMatches.saveCallerMatching(unit, expected, current);
                 }
             }
-            // TODO match several
+            else {
+                // look for partial matches
+                contextMatches.saveCallerMatchings(unit, expectedCallers, calls);
+            }
         }
         return new HashMap<>();
     }
