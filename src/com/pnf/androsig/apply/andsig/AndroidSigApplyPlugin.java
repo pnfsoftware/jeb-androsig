@@ -145,8 +145,8 @@ public class AndroidSigApplyPlugin extends AbstractEnginesPlugin {
             dexHashCodeList.loadAPKHashcodes(dex);
 
             // Create MetadataGroup
-            MetadataGroupHandler.createCodeGroupMethod(dex, struInfo);
-            MetadataGroupHandler.createCodeGroupClass(dex, struInfo);
+            MetadataGroupHandler.createCodeGroupMethod(dex, struInfo.getStructureResult());
+            MetadataGroupHandler.createCodeGroupClass(dex, struInfo.getStructureResult());
 
             // Apply signature
             struInfo.rebuildStructure(dex, dexHashCodeList);

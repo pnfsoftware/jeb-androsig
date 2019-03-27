@@ -2,7 +2,7 @@ package com.pnf.androsig.apply.util;
 
 import com.pnf.androsig.apply.model.DexMetadataGroupClass;
 import com.pnf.androsig.apply.model.DexMetadataGroupMethod;
-import com.pnf.androsig.apply.model.StructureInfo;
+import com.pnf.androsig.apply.model.IStructureResult;
 import com.pnfsoftware.jeb.core.units.IMetadataGroup;
 import com.pnfsoftware.jeb.core.units.MetadataGroupType;
 import com.pnfsoftware.jeb.core.units.code.ICodeUnit;
@@ -16,8 +16,8 @@ public class MetadataGroupHandler {
      * @param struInfo structureInfo Object which contains structure informations
      */
 
-    public static void createCodeGroupMethod(ICodeUnit unit, StructureInfo struInfo) {
-        IMetadataGroup grp = new DexMetadataGroupMethod("codeAnalysisMethods", MetadataGroupType.CLASSID, struInfo);
+    public static void createCodeGroupMethod(ICodeUnit unit, IStructureResult struRes) {
+        IMetadataGroup grp = new DexMetadataGroupMethod("codeAnalysisMethods", MetadataGroupType.CLASSID, struRes);
         unit.getMetadataManager().addGroup(grp);
     }
 
@@ -37,8 +37,8 @@ public class MetadataGroupHandler {
      * @param unit mandatory target unit
      * @param struInfo StructureInfo Object which contains structure informations
      */
-    public static void createCodeGroupClass(ICodeUnit unit, StructureInfo struInfo) {
-        IMetadataGroup grp = new DexMetadataGroupClass("codeAnalysisClasses", MetadataGroupType.CLASSID, struInfo);
+    public static void createCodeGroupClass(ICodeUnit unit, IStructureResult struRes) {
+        IMetadataGroup grp = new DexMetadataGroupClass("codeAnalysisClasses", MetadataGroupType.CLASSID, struRes);
         unit.getMetadataManager().addGroup(grp);
     }
 

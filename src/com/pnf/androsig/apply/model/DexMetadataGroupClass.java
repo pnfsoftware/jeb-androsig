@@ -35,11 +35,11 @@ import com.pnfsoftware.jeb.core.units.MetadataGroupType;
 public class DexMetadataGroupClass extends MetadataGroup {
 
     private Map<String, Object> cmap = new HashMap<>();
-    private final StructureInfo struInfo;
+    private final IStructureResult struRes;
 
-    public DexMetadataGroupClass(String name, MetadataGroupType type, StructureInfo struInfo) {
+    public DexMetadataGroupClass(String name, MetadataGroupType type, IStructureResult struRes) {
         super(name, type);
-        this.struInfo = struInfo;
+        this.struRes = struRes;
     }
 
     /**
@@ -71,7 +71,7 @@ public class DexMetadataGroupClass extends MetadataGroup {
             return null;
         }
         String classPath = address.substring(0, pos);
-        String newClassPath = struInfo.getMatchedClasses_new_orgPath().get(classPath);
+        String newClassPath = struRes.getMatchedClasses_new_orgPath().get(classPath);
         if(newClassPath == null) {
             return null;
         }

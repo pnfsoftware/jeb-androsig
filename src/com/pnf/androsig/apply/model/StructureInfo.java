@@ -20,7 +20,6 @@ package com.pnf.androsig.apply.model;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -48,44 +47,16 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
 public class StructureInfo {
     private final ILogger logger = GlobalLog.getLogger(StructureInfo.class);
 
-    // method map (method.getSignature(false), method.getSignature(true))
-    // used by DexMetadataGroup
-    private Map<String, String> matchedMethods_new_orgPath;
-    private Map<String, String> matchedClasses_new_orgPath;
-
     // Modified classes
-    private Set<Integer> modifiedClasses;
+    private Set<Integer> modifiedClasses = new HashSet<>();
 
+    private StructureResult structureResult = new StructureResult();
 
     private IDatabaseMatcher dbMatcher;
 
     public StructureInfo(Map<String, String> executionOptions, DatabaseReference ref) {
-        matchedMethods_new_orgPath = new HashMap<>();
-        matchedClasses_new_orgPath = new HashMap<>();
-
-        modifiedClasses = new HashSet<>();
-
         dbMatcher = DatabaseMatcherFactory.build(executionOptions, ref);
     }
-
-    /**
-     * Get method original signature through new signature
-     * 
-     * @return a Map (Key: method new signature. Value: method original signature)
-     */
-    public Map<String, String> getMatchedMethods_new_orgPath() {
-        return matchedMethods_new_orgPath;
-    }
-
-    /**
-     * Get class original signature through new signature
-     * 
-     * @return a Map (Key: class new signature. Value: class original signature)
-     */
-    public Map<String, String> getMatchedClasses_new_orgPath() {
-        return matchedClasses_new_orgPath;
-    }
-
 
     /**
      * Rebuild project structure using signatures.
@@ -132,9 +103,9 @@ public class StructureInfo {
         // Move exceptional classes
         moveExceptionalClasses(unit);
         // Store all matched methods
-        storeAllMatchedMethods_new_orgPath(unit);
+        structureResult.storeAllMatchedMethods_new_orgPath(unit, dbMatcher.getMatchedMethods());
         // Store all matched classes
-        storeAllMatchedClasses_new_orgPath(unit);
+        structureResult.storeAllMatchedClasses_new_orgPath(unit, dbMatcher.getMatchedClasses());
     }
 
     private void matchingVerOne(IDexUnit unit, DexHashcodeList dexHashCodeList) {
@@ -274,22 +245,12 @@ public class StructureInfo {
         }
     }
 
-    private void storeAllMatchedMethods_new_orgPath(IDexUnit unit) {
-        for(int each: dbMatcher.getMatchedMethods().keySet()) {
-            IDexMethod method = unit.getMethod(each);
-            matchedMethods_new_orgPath.put(method.getSignature(true), method.getSignature(false));
-        }
-    }
-
-    private void storeAllMatchedClasses_new_orgPath(IDexUnit unit) {
-        for(int each: dbMatcher.getMatchedClasses().keySet()) {
-            IDexClass eClass = unit.getClass(each);
-            matchedClasses_new_orgPath.put(eClass.getSignature(true), eClass.getSignature(false));
-        }
-    }
-
     public IDatabaseMatcher getDbMatcher() {
         return dbMatcher;
+    }
+
+    public IStructureResult getStructureResult() {
+        return structureResult;
     }
 
 }
