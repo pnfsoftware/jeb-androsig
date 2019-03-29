@@ -29,16 +29,16 @@ public class SignatureHandler {
     public static String generateTightHashcode(IDexCodeItem ci) {
         StringBuilder sig = new StringBuilder();
         for(IDalvikInstruction insn: ci.getInstructions()) {
-            sig.append(insn.getMnemonic() + ":");
+            sig.append(insn.getMnemonic()).append(":");
             // note: array- and switch-data are disregarded
             for(IDalvikInstructionParameter param: insn.getParameters()) {
                 int pt = param.getType();
-                sig.append(String.format("%d,", pt));
+                sig.append(pt).append(',');
                 if(pt == IDalvikInstruction.TYPE_IDX || pt == IDalvikInstruction.TYPE_REG) {
                     sig.append("x,"); // disregard pool indexes;
                 }
                 else {
-                    sig.append(String.format("%d,", param.getValue()));
+                    sig.append(param.getValue()).append(',');
                 }
             }
             sig.append(" ");
@@ -51,7 +51,6 @@ public class SignatureHandler {
         catch(NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
-        sig = null;
         return Formatter.byteArrayToHexString(h).toLowerCase();
     }
 
@@ -78,19 +77,19 @@ public class SignatureHandler {
                 sig.append("goto:");
             }
             else if(insn.getMnemonic().contains("/")) {
-                sig.append(insn.getMnemonic().split("/")[0] + ":");
+                sig.append(insn.getMnemonic().split("/")[0]).append(":");
                 flag = true;
             }
             else {
-                sig.append(insn.getMnemonic() + ":");
+                sig.append(insn.getMnemonic()).append(":");
             }
             // note: array- and switch-data are disregarded
             for(IDalvikInstructionParameter param: insn.getParameters()) {
                 int pt = param.getType();
-                sig.append(String.format("%d,", pt));
+                sig.append(pt).append(',');
             }
             if(flag) {
-                sig.append(String.format("%d,", insn.getParameters()[0].getType()));
+                sig.append(insn.getParameters()[0].getType()).append(',');
             }
 
             sig.append(" ");
@@ -104,7 +103,6 @@ public class SignatureHandler {
         catch(NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
-        sig = null;
         return Formatter.byteArrayToHexString(h).toLowerCase();
     }
 
@@ -178,6 +176,11 @@ public class SignatureHandler {
         if(ci == null) {
             return;
         }
+        loadCallerList(unit, allCallerLists, ci, m);
+    }
+
+    public static void loadCallerList(IDexUnit unit, Map<Integer, Map<Integer, Integer>> allCallerLists,
+            IDexCodeItem ci, IDexMethod m) {
         for(IDalvikInstruction insn: ci.getInstructions()) {
             if(!insn.getMnemonic().contains("invoke")) {
                 continue;

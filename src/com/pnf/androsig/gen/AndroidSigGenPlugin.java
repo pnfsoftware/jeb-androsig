@@ -20,15 +20,12 @@ package com.pnf.androsig.gen;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import com.pnf.androsig.common.AndroSigCommon;
 import com.pnf.androsig.common.SignatureHandler;
-import com.pnfsoftware.jeb.client.Licensing;
 import com.pnfsoftware.jeb.core.AbstractEnginesPlugin;
 import com.pnfsoftware.jeb.core.IEnginesContext;
 import com.pnfsoftware.jeb.core.IOptionDefinition;
@@ -36,16 +33,8 @@ import com.pnfsoftware.jeb.core.IPluginInformation;
 import com.pnfsoftware.jeb.core.IRuntimeProject;
 import com.pnfsoftware.jeb.core.OptionDefinition;
 import com.pnfsoftware.jeb.core.PluginInformation;
-import com.pnfsoftware.jeb.core.RuntimeProjectUtil;
 import com.pnfsoftware.jeb.core.Version;
-import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
-import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
-import com.pnfsoftware.jeb.core.units.code.android.dex.IDexCodeItem;
-import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
-import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethodData;
-import com.pnfsoftware.jeb.core.units.code.android.dex.IDexPrototype;
 import com.pnfsoftware.jeb.util.format.Strings;
-import com.pnfsoftware.jeb.util.io.IO;
 import com.pnfsoftware.jeb.util.logging.GlobalLog;
 import com.pnfsoftware.jeb.util.logging.ILogger;
 
@@ -72,15 +61,11 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
 public class AndroidSigGenPlugin extends AbstractEnginesPlugin {
     private static final ILogger logger = GlobalLog.getLogger(AndroidSigGenPlugin.class);
 
-    private static final int androidSigFileVersion = 1;
-
-    private static final boolean verbose = false;
-
     @Override
     public IPluginInformation getPluginInformation() {
         return new PluginInformation("Android Code Signature Generator",
                 "Generate generic signatures to identify Android libraries", "PNF Software",
-                AndroSigCommon.VERSION, Version.create(3, 0, 9));
+                AndroSigCommon.VERSION, Version.create(3, 1, 0));
     }
 
     @Override
@@ -101,12 +86,6 @@ public class AndroidSigGenPlugin extends AbstractEnginesPlugin {
         execute(context, null);
     }
 
-    private StringBuilder sb;
-    private int methodCount;
-
-    private Map<Integer, Map<Integer, Integer>> allCallerLists;
-    private Map<Integer, String> sigMap;
-
     @Override
     public void execute(IEnginesContext engctx, Map<String, String> executionOptions) {
         IRuntimeProject prj = engctx.getProject(0);
@@ -115,145 +94,19 @@ public class AndroidSigGenPlugin extends AbstractEnginesPlugin {
             return;
         }
 
-        // reset attributes
-        sb = new StringBuilder();
-        methodCount = 0;
-        allCallerLists = new HashMap<>();
-        sigMap = new HashMap<>();
+        File sigFolder;
+        try {
+            sigFolder = SignatureHandler.getSignaturesFolder(engctx);
+        }
+        catch(IOException ex) {
+            throw new RuntimeException(ex);
+        }
 
         String libname = executionOptions.get("libname");
         if(Strings.isBlank(libname)) {
             libname = prj.getName();
         }
 
-        record(";comment=JEB signature file");
-        record(";author=" + Licensing.user_name);
-        record(";version=" + androidSigFileVersion);
-        record(";libname=" + libname);
-
-        // Process dex files
-        List<IDexUnit> dexlist = RuntimeProjectUtil.findUnitsByType(prj, IDexUnit.class, false);
-        for(IDexUnit dex: dexlist) {
-            processDex(dex);
-            SignatureHandler.loadAllCallerLists(dex, allCallerLists, null, null);
-            // Store all info to sb
-            for(Map.Entry<Integer, String> each: sigMap.entrySet()) {
-                if(allCallerLists.containsKey(each.getKey())) {
-                    record(each.getValue() + "," + transferIndexToName(dex, allCallerLists.get(each.getKey())));
-                }
-                else {
-                    record(each.getValue() + ",null");
-                }
-            }
-        }
-
-        if(methodCount >= 1) {
-            File sigFolder;
-            try {
-                sigFolder = SignatureHandler.getSignaturesFolder(engctx);
-            }
-            catch(IOException ex) {
-                throw new RuntimeException(ex);
-            }
-
-            File f = new File(sigFolder, sanitizeFilename(libname) + ".sig");
-            logger.info("Saving signatures to file: %s", f);
-            try {
-                byte[] data = sb.toString().getBytes("UTF-8");
-                if(!IO.writeFileSafe(f, data, true)) {
-                    logger.error("Could not write signature file!");
-                }
-            }
-            catch(UnsupportedEncodingException e) {
-                logger.catching(e);
-            }
-        }
-    }
-
-    private void record(String s) {
-        sb.append(s);
-        sb.append('\n');
-
-        if(verbose) {
-            logger.info(s);
-        }
-    }
-
-    private String sanitizeFilename(String s) {
-        String s2 = "";
-        for(int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            s2 += c == '-' || Character.isJavaIdentifierPart(c) ? c: '_';
-        }
-        return s2;
-    }
-
-    private String transferIndexToName(IDexUnit dex, Map<Integer, Integer> inputs) {
-        StringBuilder sb = new StringBuilder();
-        for(Map.Entry<Integer, Integer> each: inputs.entrySet()) {
-            sb.append(dex.getMethods().get(each.getKey()).getSignature(false) + "=" + each.getValue() + "|");
-        }
-        sb.deleteCharAt(sb.length() - 1);
-        return sb.toString();
-    }
-
-    private boolean processDex(IDexUnit dex) {
-        if(!dex.isProcessed()) {
-            if(!dex.process()) {
-                return false;
-            }
-        }
-        List<? extends IDexClass> classes = dex.getClasses();
-        if(classes == null || classes.size() == 0) {
-            logger.info("No classes in current project");
-            return false;
-        }
-        for(IDexClass eClass: classes) {
-            List<? extends IDexMethod> methods = eClass.getMethods();
-            if(methods == null || methods.size() == 0) {
-                continue;
-            }
-            for(IDexMethod m: methods) {
-                if(!m.isInternal()) {
-                    continue;
-                }
-
-                IDexMethodData md = m.getData();
-                if(md == null) {
-                    continue;
-                }
-
-                String mhash_tight = new String();
-                String mhash_loose = new String();
-                int opcount = 0;
-
-                IDexCodeItem ci = md.getCodeItem();
-                if(ci == null) {
-                    mhash_tight = "null";
-                    mhash_loose = "null";
-                }
-                else {
-                    mhash_tight = SignatureHandler.generateTightHashcode(ci); // Get tight hashcode
-                    mhash_loose = SignatureHandler.generateLooseHashcode(ci); // Get loose hashcode
-                    opcount = ci.getInstructions().size();
-                }
-                if(mhash_tight == null || mhash_loose == null) {
-                    continue;
-                }
-                String classfullname = dex.getTypes().get(m.getClassTypeIndex()).getSignature(true);
-                String methodname = m.getName(true);
-                //m.getp
-                IDexPrototype proto = dex.getPrototypes().get(m.getPrototypeIndex());
-                String shorty = proto.getShorty();
-                String prototypes = proto.generate(false);
-
-                String s = String.format("%s,%s,%s,%s,%d,%s,%s", classfullname, methodname, shorty, prototypes,
-                        opcount, mhash_tight, mhash_loose);
-                sigMap.put(m.getIndex(), s);
-
-                methodCount++;
-            }
-        }
-        return true;
+        LibraryGenerator.generate(prj, sigFolder, libname);
     }
 }
