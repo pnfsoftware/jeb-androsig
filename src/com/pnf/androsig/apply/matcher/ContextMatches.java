@@ -95,8 +95,10 @@ public class ContextMatches {
     }
 
     public void saveClassMatch(String oldClass, String newClass, String className, String methodName) {
-        if(saveClassMatch(oldClass, newClass)) {
-            logger.i("Found match class: %s by param matching from %s->%s", newClass, className, methodName);
+        if(oldClass.charAt(0) == 'L' && newClass.charAt(0) == 'L') {
+            if(saveClassMatch(oldClass, newClass)) {
+                logger.i("Found match class: %s by param matching from %s->%s", newClass, className, methodName);
+            }
         }
     }
 
@@ -162,19 +164,19 @@ public class ContextMatches {
             return;
         }
         applyClassMatching(expectedTokens, currentTokens);
-        applyMethodMatching(m, expectedTokens[1], expectedParams, currentParams);
+        applyMethodMatching(m, expectedTokens[0], expectedTokens[1], expectedParams, currentParams);
     }
 
     private void applyClassMatching(String[] expectedTokens, String[] currentTokens) {
-        saveClassMatch(currentTokens[0], expectedTokens[0]);
-        saveClassMatch(currentTokens[3], expectedTokens[3]);
+        saveClassMatch(currentTokens[0], expectedTokens[0], expectedTokens[0], expectedTokens[1]);
+        saveClassMatch(currentTokens[3], expectedTokens[3], expectedTokens[0], expectedTokens[1]);
     }
 
-    private void applyMethodMatching(IDexMethod m, String name, List<String> expectedParams,
+    private void applyMethodMatching(IDexMethod m, String cname, String name, List<String> expectedParams,
             List<String> currentParams) {
         saveMethodMatch(m.getIndex(), name);
         for(int i = 0; i < expectedParams.size(); i++) {
-            saveClassMatch(currentParams.get(i), expectedParams.get(i));
+            saveClassMatch(currentParams.get(i), expectedParams.get(i), cname, name);
         }
     }
 
@@ -245,7 +247,7 @@ public class ContextMatches {
             String[] currentTokens = currentsSplits.get(resol.getValue());
             applyClassMatching(expectedTokens, currentTokens);
             IDexMethod m = unit.getMethod(resol.getValue());
-            applyMethodMatching(m, expectedTokens[1], expectedParams, currentParams);
+            applyMethodMatching(m, expectedTokens[0], expectedTokens[1], expectedParams, currentParams);
         }
 
         for(Entry<String, List<String>> match: matchings.entrySet()) {
@@ -273,14 +275,14 @@ public class ContextMatches {
             // apply if some
             for(int i = 0; i < mergedParams.size(); i++) {
                 if(!Strings.isBlank(mergedParams.get(i))) {
-                    saveClassMatch(mergedParams.get(i), expectedParams.get(i));
+                    saveClassMatch(mergedParams.get(i), expectedParams.get(i), expectedTokens[0], expectedTokens[1]);
                 }
             }
             if(!Strings.isBlank(mergedTokens[0])) {
-                saveClassMatch(mergedTokens[0], expectedTokens[0]);
+                saveClassMatch(mergedTokens[0], expectedTokens[0], expectedTokens[0], expectedTokens[1]);
             }
             if(!Strings.isBlank(mergedTokens[3])) {
-                saveClassMatch(mergedTokens[3], expectedTokens[3]);
+                saveClassMatch(mergedTokens[3], expectedTokens[3], expectedTokens[0], expectedTokens[1]);
             }
         }
     }
