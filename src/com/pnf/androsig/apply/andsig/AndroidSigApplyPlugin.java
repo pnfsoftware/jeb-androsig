@@ -169,6 +169,10 @@ public class AndroidSigApplyPlugin extends AbstractEnginesPlugin {
             break;
         }
         logger.info("*************** Completed! ***************");
+        // Just a hint to help jeb free memory consumption
+        struInfo = null;
+        ref = null;
+        System.gc();
     }
 
     /**

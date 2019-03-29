@@ -56,6 +56,10 @@ public class DatabaseReference {
     }
 
     private void loadAllHashCodesTemp(File sigFolder) {
+        // ask GC before (memory cosumption can be quite high)
+        System.gc();
+        Runtime rt = Runtime.getRuntime();
+        long memused = rt.totalMemory() - rt.freeMemory();
         for(File f: sigFolder.listFiles()) {
             if(f.isFile() && f.getName().endsWith(".sig")) {
                 allSignatureFileCount++;
@@ -66,7 +70,14 @@ public class DatabaseReference {
             else if(f.isDirectory()) {
                 loadAllHashCodesTemp(f);
             }
+            long newmemused = rt.totalMemory() - rt.freeMemory();
+            if(newmemused - memused > 1_000_000_000L) {
+                System.gc();
+                memused = rt.totalMemory() - rt.freeMemory();
+            }
         }
+        // ask GC after having load all files
+        System.gc();
     }
 
     private boolean loadHashCodes(File sigFile) {
