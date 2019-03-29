@@ -133,7 +133,7 @@ public class MethodSignature {
 
 
     public String[] getVersions() {
-        if(versions == null) {
+        if(versions == null || versions.isEmpty()) {
             return null;
         }
         return versions.split(";");

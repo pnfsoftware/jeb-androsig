@@ -6,6 +6,7 @@
 package com.pnf.androsig.apply.matcher;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -169,6 +170,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
         List<? extends IDexMethod> methods = eClass.getMethods();
         Map<String, Map<String, InnerMatch>> fileCandidates = new HashMap<>(); // file -> (classname->count)
         String originalSignature = eClass.getSignature(true);
+        int innerLevel = getInnerLevel(originalSignature);
         if(originalSignature.contains("$")) {
             String parentSignature = originalSignature.substring(0, originalSignature.lastIndexOf("$")) + ";";
             IDexClass parentClass = dex.getClass(parentSignature);
@@ -189,19 +191,30 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                     }
 
                     // is there only one class that can match?
-                    String cname = mergeSignature(compatibleSignatures).getCname();
-                    if(Strings.isBlank(cname)) {
-                        //  maybe other inner classes are already matched? Remove them
-                        Set<String> innerClasses = compatibleSignatures.stream().map(s -> s.getCname()).collect(Collectors.toSet());
-                        for (String inner : innerClasses) {
-                            IDexClass innerCl = dex.getClass(inner);
-                            if(innerCl != null && matchedClasses.containsKey(innerCl.getIndex())) {
-                                compatibleSignatures = compatibleSignatures.stream()
-                                        .filter(s -> !s.getCname().equals(inner)).collect(Collectors.toList());
-                           }
+                    List<MethodSignature> candidates = mergeSignaturesPerClass(compatibleSignatures);
+                    String cname = null;
+                    if(!candidates.isEmpty()) {
+                        if(candidates.size() == 1) {
+                            cname = candidates.get(0).getCname();
                         }
-                        cname = mergeSignature(compatibleSignatures).getCname();
-                    }
+                        else {
+                            //  maybe other inner classes are already matched? Remove them
+                            for(MethodSignature inner: candidates) {
+                                IDexClass innerCl = dex.getClass(inner.getCname());
+                                if(innerCl == null || !matchedClasses.containsKey(innerCl.getIndex())) {
+                                    if(cname == null) {
+                                        cname = inner.getCname();
+                                    }
+                                    else {
+                                        // second found
+                                        cname = null;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    } // else no candidates
+
                     if(Strings.isBlank(cname)) {
                         if(methods == null || methods.size() == 0) {
                             return null;
@@ -229,11 +242,10 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                                 classes = new HashMap<>();
                                 fileCandidates.put(file, classes);
                             }
-                            saveTemporaryCandidate(dex, eMethod, sigLine, firstRound, classes, file);
+                            saveTemporaryCandidate(dex, eMethod, sigLine, firstRound, classes, file, innerLevel);
                         }
                     }
                     else {
-
                         contextMatches.saveClassMatch(originalSignature, cname, name);
                         return null;
                     }
@@ -281,7 +293,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                             classes = new HashMap<>();
                             fileCandidates.put(file, classes);
                         }
-                        saveTemporaryCandidate(dex, eMethod, sigLine, firstRound, classes, file);
+                        saveTemporaryCandidate(dex, eMethod, sigLine, firstRound, classes, file, innerLevel);
                     }
                 }
                 else if(!firstRound) {
@@ -299,69 +311,71 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                                 classes = new HashMap<>();
                                 fileCandidates.put(file, classes);
                             }
-                            saveTemporaryCandidate(dex, eMethod, sigLine, firstRound, classes, file);
+                            saveTemporaryCandidate(dex, eMethod, sigLine, firstRound, classes, file, innerLevel);
                         }
                     }
                 }
             }
         }
 
-        // retrieve best candidates only
+        if(fileCandidates.size() == 0) {
+            return null;
+        }
+
+        // Find small methods
+        for(Entry<String, Map<String, InnerMatch>> entry: fileCandidates.entrySet()) {
+            for(InnerMatch cand: entry.getValue().values()) {
+                for(IDexMethod eMethod: methods) {
+                    MethodSignature strArray = cand.classPathMethod.get(eMethod.getIndex());
+                    if(strArray != null) {
+                        continue;
+                    }
+                    IDexPrototype proto = dex.getPrototypes().get(eMethod.getPrototypeIndex());
+                    String prototypes = proto.generate(true);
+                    String shorty = dex.getStrings().get(proto.getShortyIndex()).getValue();
+                    String mhash_tight = dexHashCodeList.getTightHashcode(eMethod);
+                    if(mhash_tight == null) {
+                        continue;
+                    }
+
+                    List<MethodSignature> sigs = ref.getSignatureLines(cand.file, mhash_tight, true);
+                    if(sigs != null) {
+                        strArray = findMethodName(dex, sigs, prototypes, shorty, cand.className,
+                                cand.classPathMethod.values(), eMethod);
+                    }
+                    if(strArray == null) {
+                        String mhash_loose = dexHashCodeList.getLooseHashcode(eMethod);
+                        sigs = ref.getSignatureLines(cand.file, mhash_loose, false);
+                        if(sigs != null) {
+                            strArray = findMethodName(dex, sigs, prototypes, shorty, cand.className,
+                                    cand.classPathMethod.values(), eMethod);
+                        }
+                    }
+                    if(strArray != null) {
+                        cand.classPathMethod.put(eMethod.getIndex(), strArray);
+                    }
+                }
+            }
+        }
+
         Integer higherOccurence = 0;
         List<InnerMatch> bestCandidates = new ArrayList<>();
         for(Entry<String, Map<String, InnerMatch>> cand: fileCandidates.entrySet()) {
             higherOccurence = getBestCandidates(bestCandidates, cand.getValue().values(), higherOccurence);
         }
-        if(bestCandidates.size() == 0) {
+
+        InnerMatch bestCandidate = null;
+        if (bestCandidates.isEmpty())  {
             return null;
         }
-
-        // Find small methods
-        for(InnerMatch cand: bestCandidates) {
-            for(IDexMethod eMethod: methods) {
-                MethodSignature strArray = cand.classPathMethod.get(eMethod.getIndex());
-                if(strArray != null) {
-                    continue;
-                }
-                IDexPrototype proto = dex.getPrototypes().get(eMethod.getPrototypeIndex());
-                String prototypes = proto.generate(true);
-                String shorty = dex.getStrings().get(proto.getShortyIndex()).getValue();
-                String mhash_tight = dexHashCodeList.getTightHashcode(eMethod);
-                if(mhash_tight == null) {
-                    continue;
-                }
-
-                List<MethodSignature> sigs = ref.getSignatureLines(cand.file, mhash_tight, true);
-                if(sigs != null) {
-                    strArray = findMethodName(dex, sigs, prototypes, shorty, cand.className,
-                            cand.classPathMethod.values(), eMethod);
-                }
-                if(strArray == null) {
-                    String mhash_loose = dexHashCodeList.getLooseHashcode(eMethod);
-                    sigs = ref.getSignatureLines(cand.file, mhash_loose, false);
-                    if(sigs != null) {
-                        strArray = findMethodName(dex, sigs, prototypes, shorty, cand.className,
-                                cand.classPathMethod.values(), eMethod);
-                    }
-                }
-                if(strArray != null) {
-                    cand.classPathMethod.put(eMethod.getIndex(), strArray);
-                }
-            }
-        }
-        InnerMatch bestCandidate = null;
-        if(bestCandidates.size() == 1) {
+        else if(bestCandidates.size() == 1) {
             bestCandidate = bestCandidates.get(0);
         }
         else {
-            higherOccurence = 0;
-            for(Entry<String, Map<String, InnerMatch>> cand: fileCandidates.entrySet()) {
-                higherOccurence = getBestCandidates(bestCandidates, cand.getValue().values(), higherOccurence);
-            }
-            if(bestCandidates.size() == 1) {
-                bestCandidate = bestCandidates.get(0);
-            }
-            else {
+            /// if(bestCandidates.size() == 1) {
+            //     bestCandidate = bestCandidates.get(0);
+            // }
+            // else {
                 // TODO Test if methods are the same (can happen with different versions of same lib)
                 // May be better to update DatabaseReference to load only once duplicated classes
 
@@ -418,14 +432,24 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                         bestCandidate = bestCandidates.get(0);
                     }
                 }
-            }
+            //}
         }
         matchedClassesFile.put(eClass.getIndex(), bestCandidate.file);
         return bestCandidate;
     }
 
-    private Map<String, Integer> mergeVersions(String file, Collection<MethodSignature> values) {
-        Map<String, Integer> versionOccurences = usedSigFiles.get(file);
+    private int getInnerLevel(String signature) {
+        int level = 0;
+        for(int i = 0; i < signature.length(); i++) {
+            if(signature.charAt(i) == '$') {
+                level++;
+            }
+        }
+        return level;
+    }
+
+    private Map<String, Integer> mergeVersions(Map<String, Integer> versionOccurences,
+            Collection<MethodSignature> values) {
         if(versionOccurences == null) {
             versionOccurences = new HashMap<>();
         }
@@ -477,8 +501,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
         List<Integer> doNotRenameIndexes = new ArrayList<>();
     }
 
-    private static void saveTemporaryCandidate(IDexUnit dex, IDexMethod eMethod, List<MethodSignature> elts,
-            boolean firstRound, Map<String, InnerMatch> classes, String file) {
+    private  void saveTemporaryCandidate(IDexUnit dex, IDexMethod eMethod, List<MethodSignature> elts,
+            boolean firstRound, Map<String, InnerMatch> classes, String file, int innerLevel) {
         IDexPrototype proto = dex.getPrototypes().get(eMethod.getPrototypeIndex());
         String shorty = proto.getShorty();
         String prototype = proto.generate(true);
@@ -488,21 +512,26 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                 .filter(strArray -> MethodSignature.getShorty(strArray).equals(shorty)
                 && MethodSignature.getPrototype(strArray).equals(prototype)).collect(Collectors.toList());
         if(!realCandidates.isEmpty()) {
-            MethodSignature strArray = realCandidates.get(0);
-            String className = MethodSignature.getClassname(strArray);
-            InnerMatch inner = classes.get(className);
-            if(inner == null) {
-                inner = new InnerMatch();
-                inner.className = className;
-                inner.file = file;
+            List<MethodSignature> strArrays = mergeSignaturesPerClass(realCandidates);
+            for(MethodSignature strArray: strArrays) {
+                String className = MethodSignature.getClassname(strArray);
+                if(getInnerLevel(className) != innerLevel) {
+                    continue;
+                }
+                InnerMatch inner = classes.get(className);
+                if(inner == null) {
+                    inner = new InnerMatch();
+                    inner.className = className;
+                    inner.file = file;
+                }
+                inner.classPathMethod.put(eMethod.getIndex(), strArray);
+                if(realCandidates.size() > 1) {
+                    // we can not establish which method is the good one
+                    // however, it is good to report that a matching was found (for percentage matching instructions
+                    inner.doNotRenameIndexes.add(eMethod.getIndex());
+                }
+                classes.put(className, inner);
             }
-            inner.classPathMethod.put(eMethod.getIndex(), strArray);
-            if(realCandidates.size() > 1) {
-                // we can not establish which method is the good one
-                // however, it is good to report that a matching was found (for percentage matching instructions
-                inner.doNotRenameIndexes.add(eMethod.getIndex());
-            }
-            classes.put(className, inner);
         }
     }
 
@@ -556,7 +585,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
             if(f(unit, eClass, temp1)) {
                 logger.i("Found match class: %s from file %s", innerMatch.className, innerMatch.file);
                 matchedClasses.put(eClass.getIndex(), innerMatch.className);
-                usedSigFiles.put(innerMatch.file, mergeVersions(innerMatch.file, innerMatch.classPathMethod.values()));
+                usedSigFiles.put(innerMatch.file,
+                        mergeVersions(usedSigFiles.get(innerMatch.file), innerMatch.classPathMethod.values()));
                 ArrayList<Integer> tempArrayList = dupClasses.get(innerMatch.className);
                 if(tempArrayList != null) {
                     tempArrayList.add(eClass.getIndex());
@@ -658,12 +688,14 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                 }
             }
             Map<String, Integer> expectedCallers = match.getValue().getTargetCaller();
-            if(expectedCallers.size() == 0 && calls.size() == 0) {
+            if(expectedCallers.isEmpty() && calls.isEmpty()) {
                 continue;
             }
-            if(expectedCallers.size() == 0) {
-                // TODO wrong MethodSignature? (merged)
-                continue;
+            if(expectedCallers.isEmpty()) {
+                expectedCallers = getBestCallers(unit, match.getValue());
+                if(expectedCallers == null || expectedCallers.isEmpty()) {
+                    continue;
+                }
             }
             if(expectedCallers.size() == 1 && calls.size() == 1) {
                 String expected = expectedCallers.keySet().iterator().next();
@@ -680,6 +712,89 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
         return new HashMap<>();
     }
 
+    private Map<String, Integer> getBestCallers(IDexUnit unit, MethodSignature value) {
+        // wrong MethodSignature? (merged): retrieve the best caller
+        IDexClass cl = unit.getClass(value.getCname());
+        if(cl == null) {
+            return null;
+        }
+        String f = getMatchedClassFile(cl, value.getCname());
+        if(f != null) {
+            Map<String, Integer> versions = usedSigFiles.get(f);
+            SignatureFile file = ref.getSignatureFile(f);
+            List<MethodSignature> candidates = new ArrayList<>();
+            for(Entry<String, List<MethodSignature>> entry: file.getAllTightSignatures().entrySet()) {
+                for(MethodSignature sig: entry.getValue()) {
+                    if(sig.getCname().equals(value.getCname()) && sig.getMname().equals(value.getMname())
+                            && sig.getPrototype().equals(value.getPrototype()) && !Strings.isBlank(sig.getCaller())) {
+                        candidates.add(sig);
+                    }
+                }
+            }
+            if(candidates.isEmpty()) {
+                // no caller in base list
+                return null;
+            }
+            if(candidates.size() == 1) {
+                return candidates.get(0).getTargetCaller();
+            }
+            List<String> preferedOrder = orderVersions(versions);
+            for(String prefered: preferedOrder) {
+                for(MethodSignature sig: candidates) {
+                    if(Arrays.asList(sig.getVersions()).contains(prefered)) {
+                        return sig.getTargetCaller();
+                    }
+                }
+            }
+            return null; // wait for better one
+        }
+        return null;
+    }
+
+    private String getMatchedClassFile(IDexClass cl, String className) {
+        String f = matchedClassesFile.get(cl.getIndex());
+        if(f != null) {
+            return f;
+        }
+        List<String> fs = ref.getFilesContainingClass(className);
+        if(fs == null || fs.isEmpty()) {
+            return null;
+        }
+        if(fs.size() == 1) {
+            f = fs.get(0);
+            matchedClassesFile.put(cl.getIndex(), f);
+            if(!usedSigFiles.containsKey(f)) {
+                usedSigFiles.put(f, null);
+            }
+            return f;
+        }
+        List<String> candidates = new ArrayList<>();
+        for(String cand: fs) {
+            if(usedSigFiles.containsKey(cand)) {
+                candidates.add(cand);
+            }
+        }
+        if(candidates.isEmpty()) {
+            return fs.get(0);
+        }
+        if(candidates.size() == 1) {
+            f = candidates.get(0);
+            matchedClassesFile.put(cl.getIndex(), f);
+            return f;
+        }
+        return null;// maybe duplicated, wait for other part to decide
+    }
+
+    private List<String> orderVersions(Map<String, Integer> versions) {
+        Map<Integer, List<String>> versionsRev = versions.entrySet().stream().collect(
+                Collectors.groupingBy(Map.Entry::getValue, Collectors.mapping(Map.Entry::getKey, Collectors.toList())));
+        List<String> ordered = new ArrayList<>();
+        for(Entry<Integer, List<String>> entry: versionsRev.entrySet()) {
+            ordered.addAll(entry.getValue());
+        }
+        return ordered;
+    }
+
     @Override
     public Map<Integer, String> postProcessRenameClasses(IDexUnit dex, DexHashcodeList dexHashCodeList,
             boolean firstRound) {
@@ -689,6 +804,11 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
             if(eClass == null) {
                 // class not loaded in dex (maybe in another dex)
                 continue;
+            }
+            String f = matchedClassesFile.get(eClass.getIndex());
+            if(f == null) {
+                // update matchedClassesFile
+                getMatchedClassFile(eClass, entry.getValue());
             }
             List<? extends IDexMethod> methods = eClass.getMethods();
             if(methods == null || methods.size() == 0) {
@@ -727,7 +847,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
 
                     if(files == null) {
                         // lazy file init
-                        String f = matchedClassesFile.get(entry.getKey());
+                        f = matchedClassesFile.get(entry.getKey());
                         if(f == null) {
                             files = ref.getFilesContainingClass(className);
                             if(files == null) {
@@ -882,8 +1002,14 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
     }
 
     private MethodSignature mergeSignature(List<MethodSignature> results) {
+        if(results == null || results.isEmpty()) {
+            return null;
+        }
+        if(results.size() == 1) {
+            return results.get(0);
+        }
         String[] result = new String[9];
-        for(int i = 0; i < 9; i++) {
+        for(int i = 0; i < 5; i++) {
             for(MethodSignature ress: results) {
                 String[] res = ress.toTokens();
                 if(i >= res.length) {
@@ -893,18 +1019,51 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                     result[i] = res[i];
                 }
                 else if(!result[i].equals(res[i])) {
-                    String methodMatch = result[i] + " OR " + res[i];
                     result[i] = ""; // two lines differ here: may loose callers
                     if(i == 1) {
-                        logger.debug("%s: There are several methods matching for signature %s: %s", ress.getCname(),
-                                ress.getPrototype(), methodMatch);
+                        // String methodMatch = result[i] + " OR " + res[i];
+                       // logger.debug("%s: There are several methods matching for signature %s: %s", ress.getCname(),
+                       //         ress.getPrototype(), methodMatch);
                     }
                     break;
                 }
             }
         }
+        // merge versions
+        Set<String> versions = new HashSet<>();
+        for(MethodSignature value: results) {
+            // put first as reference
+            String[] vArray = MethodSignature.getVersions(value);
+            if(vArray != null) {
+                for(String version: vArray) {
+                    versions.add(version);
+                }
+            }
+        }
         return new MethodSignature(MethodSignature.getClassname(result), MethodSignature.getMethodName(result),
-                MethodSignature.getShorty(result), MethodSignature.getPrototype(result), result[4], null);
+                MethodSignature.getShorty(result), MethodSignature.getPrototype(result), result[4],
+                Strings.join(";", versions));
+    }
+
+    private List<MethodSignature> mergeSignaturesPerClass(List<MethodSignature> results) {
+        if(results.size() < 2) {
+            return results;
+        }
+        Map<String, List<MethodSignature>> sigs = new HashMap<>();
+        for(MethodSignature result: results) {
+            String className = result.getCname();
+            List<MethodSignature> values = sigs.get(className);
+            if(values == null) {
+                values = new ArrayList<>();
+                sigs.put(className, values);
+            }
+            values.add(result);
+        }
+        List<MethodSignature> merged = new ArrayList<>();
+        for(List<MethodSignature> values: sigs.values()) {
+            merged.add(mergeSignature(values));
+        }
+        return merged;
     }
 
     /**
