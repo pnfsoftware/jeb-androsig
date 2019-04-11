@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import com.pnfsoftware.jeb.util.encoding.Conversion;
 import com.pnfsoftware.jeb.util.io.IO;
@@ -138,4 +139,15 @@ public class SignatureFile {
         return allSignatureCount;
     }
 
+    public List<MethodSignature> getSignaturesForClassname(String className) {
+        List<MethodSignature> compatibleSignatures = new ArrayList<>();
+        for(Entry<String, List<MethodSignature>> entry: allTightSignatures.entrySet()) {
+            for(MethodSignature sig: entry.getValue()) {
+                if(sig.getCname().startsWith(className)) {
+                    compatibleSignatures.add(sig);
+                }
+            }
+        }
+        return compatibleSignatures;
+    }
 }
