@@ -565,6 +565,28 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                 } else {
                     String oldClass = eClass.getSignature(true);
                     String newClass = innerMatch.className;
+                    // Preprocess: if new class is already renamed, there is no reason to move another one
+                    String oldParentClass = oldClass;
+                    String newParentClass = newClass;
+                    while(newParentClass.contains("$") && oldParentClass.contains("$")) {
+                        oldParentClass = oldParentClass.substring(0, oldParentClass.lastIndexOf("$")) + ";";
+                        newParentClass = newParentClass.substring(0, newParentClass.lastIndexOf("$")) + ";";
+                        int oldClassId = unit.getClass(oldParentClass).getIndex();
+                        IDexClass newParentClassObj = unit.getClass(newParentClass);
+                        String oldParentMatch = matchedClasses.get(oldClassId);
+                        if(oldParentMatch != null) {
+                            // parent class has already a match: must be the same
+                            if(!oldParentMatch.equals(newParentClass)) {
+                                fileMatches.removeClassFiles(eClass);
+                                return;
+                            }
+                        }
+                        else if(newParentClassObj != null && matchedClasses.get(newParentClassObj.getIndex()) != null) {
+                            // destination class is being/has been renamed but does not match the original class
+                            fileMatches.removeClassFiles(eClass);
+                            return;
+                        }
+                    }
                     while(newClass.contains("$") && oldClass.contains("$")) {
                         int lastIndex = newClass.lastIndexOf('$');
                         String newClassName = newClass.substring(newClass.lastIndexOf('$'));
