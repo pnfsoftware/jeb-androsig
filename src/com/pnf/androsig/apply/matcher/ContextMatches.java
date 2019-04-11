@@ -112,6 +112,20 @@ public class ContextMatches {
                 contextMatches.put(oldClass, INVALID_MATCH);
                 return false;
             }
+            return true;
+        }
+        if(contextMatches.containsValue(newClass) && !oldClass.equals(newClass)) { // allow old binding to new binding
+            String conflictVal = null;
+            for(Entry<String, String> c: contextMatches.entrySet()) {
+                if(c.getValue().equals(newClass)) {
+                    conflictVal = c.getKey();
+                    break;
+                }
+            }
+            logger.error("Conflict between %s and %s over %s", oldClass, conflictVal, newClass);
+            contextMatches.put(oldClass, INVALID_MATCH);
+            contextMatches.put(newClass, INVALID_MATCH);
+            return false;
         }
         contextMatches.put(oldClass, newClass);
         return true;
@@ -247,6 +261,10 @@ public class ContextMatches {
             String[] currentTokens = currentsSplits.get(resol.getValue());
             applyClassMatching(expectedTokens, currentTokens);
             IDexMethod m = unit.getMethod(resol.getValue());
+            if(m == null) {
+                // TODO cannot retrieve method??
+                continue;
+            }
             applyMethodMatching(m, expectedTokens[0], expectedTokens[1], expectedParams, currentParams);
         }
 
