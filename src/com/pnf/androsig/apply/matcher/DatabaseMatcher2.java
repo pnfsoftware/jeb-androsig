@@ -975,6 +975,21 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
             if(!MethodSignature.getClassname(strArray).equals(classPath)) {
                 continue;
             }
+            // init/clinit can not be changed, but is a good indicator for matching
+            String methodName = eMethod.getName(true);
+            if(methodName.equals("<init>")) {
+                if(!strArray.getMname().equals("<init>")) {
+                    continue;
+                }
+            }
+            else if(methodName.equals("<clinit>")) {
+                if(!strArray.getMname().equals("<clinit>")) {
+                    continue;
+                }
+            }
+            else if(strArray.getMname().equals("<init>") || strArray.getMname().equals("<clinit>")) {
+                continue;
+            }
             for(MethodSignature alreadyProcessed: methods) {
                 if((prototype ? alreadyProcessed.getPrototype().equals(strArray.getPrototype())
                         : alreadyProcessed.getShorty().equals(strArray.getShorty()))
@@ -1003,7 +1018,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
             return;
         }
         // only on post processing
-        // filter versions
+        // firstly, filter versions
         String f = fileMatches.getFileFromClass(eMethod.getClassType().getImplementingClass());
         if(f == null) {
             return; // wait for post process to retrieve correct file
@@ -1031,6 +1046,35 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
             if(results.size() == 1) {
                 return;
             }
+        }
+
+        // secondly, filter by caller
+        Map<Integer, Integer> callers = apkCallerLists.get(eMethod.getIndex());
+        if(callers == null) {
+            return;
+        }
+        // caller may not be referenced in lib
+        filtered.clear();
+        outer: for(MethodSignature sig: results) {
+            Map<String, Integer> targets = new HashMap<>(sig.getTargetCaller());
+            if(targets.isEmpty()) {
+                continue;
+            }
+            for(Entry<Integer, Integer> c: callers.entrySet()) {
+                // is there a method matching?
+                // FIXME allow partial matching? maybe in later steps
+                IDexMethod cMethod = dex.getMethod(c.getKey());
+                Integer occ = targets.remove(cMethod.getSignature(true));
+                if(occ == null || occ != c.getValue()) {
+                    //not the same method
+                    continue outer;
+                }
+            }
+            filtered.add(sig);
+        }
+        if(!filtered.isEmpty()) {
+            results.clear();
+            results.addAll(filtered);
         }
     }
 
