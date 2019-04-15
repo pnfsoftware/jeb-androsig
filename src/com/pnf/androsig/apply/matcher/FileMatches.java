@@ -23,6 +23,7 @@ import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.MethodSignature;
 import com.pnf.androsig.apply.model.SignatureFile;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
+import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
 import com.pnfsoftware.jeb.util.collect.CollectionUtil;
 import com.pnfsoftware.jeb.util.format.Strings;
 
@@ -69,7 +70,7 @@ public class FileMatches {
 
     public boolean addVersions(String file, Collection<MethodSignature> values) {
         if(!stable) {
-            List<Set<String>> res = mergeVersions(usedSigFilesReduced.get(file), values);
+            List<Set<String>> res = mergeVersions(usedSigFilesReduced.get(file), values, true);
             if(res == null) {
                 return false;
             }
@@ -100,7 +101,8 @@ public class FileMatches {
         return versionOccurences;
     }
 
-    private List<Set<String>> mergeVersions(List<Set<String>> reducedVersions, Collection<MethodSignature> values) {
+    private static List<Set<String>> mergeVersions(List<Set<String>> reducedVersions,
+            Collection<MethodSignature> values, boolean mergeTypes) {
         if(reducedVersions == null) {
             reducedVersions = new ArrayList<>();
         }
@@ -115,7 +117,12 @@ public class FileMatches {
             else {
                 Set<String> versionList = new HashSet<>();
                 for(String v: versions) {
-                    versionList.add(v.replace("_d8r", "").replace("_d8d", "").replace("_d8", ""));
+                    if(mergeTypes) {
+                        versionList.add(v.replace("_d8r", "").replace("_d8d", "").replace("_d8", ""));
+                    }
+                    else {
+                        versionList.add(v);
+                    }
                 }
                 if(allVersionList.isEmpty()) {
                     allVersionList.addAll(versionList);
@@ -174,7 +181,11 @@ public class FileMatches {
         if(versions == null) {
             return new ArrayList<>();
         }
-        return orderVersions(versions);
+        List<List<String>> res = orderVersions(versions);
+        if(hasNoVersion(res)) {
+            return new ArrayList<>();
+        }
+        return res;
     }
 
 
@@ -242,6 +253,9 @@ public class FileMatches {
         Map<String, Integer> versions = usedSigFiles.get(f);
         List<List<String>> preferedOrderList = orderVersions(versions);
         int level = 0;
+        if(hasNoVersion(preferedOrderList)) {
+            return level;
+        }
         for(List<String> preferedOrder: preferedOrderList) {
             for(String prefered: preferedOrder) {
                 for(MethodSignature sig: compatibleSignatures) {
@@ -253,6 +267,11 @@ public class FileMatches {
             level++;
         }
         return -1;
+    }
+
+    boolean hasNoVersion(List<List<String>> preferedOrderList) {
+        return preferedOrderList.size() == 1 && preferedOrderList.get(0).size() == 1
+                && preferedOrderList.get(0).get(0).equals("all");
     }
 
     List<List<String>> orderVersions(Map<String, Integer> versions) {
@@ -304,6 +323,24 @@ public class FileMatches {
             }
         }
         return newCandidates;
+    }
+
+    public static Set<String> getVersions(IDexClass parentClass, Map<Integer, MethodSignature> matchedSigMethods) {
+        List<? extends IDexMethod> methods = parentClass.getMethods();
+        List<Set<String>> reducedVersions = null;
+        for(IDexMethod eMethod: methods) {
+            if(!eMethod.isInternal()) {
+                continue;
+            }
+            if(matchedSigMethods.containsKey(eMethod.getIndex())) {
+                MethodSignature mSig = matchedSigMethods.get(eMethod.getIndex());
+                reducedVersions = mergeVersions(reducedVersions, Arrays.asList(mSig), false);
+            }
+        }
+        if(reducedVersions != null && reducedVersions.size() == 1) {
+            return reducedVersions.get(0);
+        }
+        return null;
     }
 
 }
