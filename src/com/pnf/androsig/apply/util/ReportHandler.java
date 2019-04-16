@@ -69,12 +69,9 @@ public class ReportHandler {
                         continue;
                     }
                     List<? extends IInstruction> inst = m.getInstructions();
-                    if(inst == null) {
-                        continue;
-                    }
                     String methodPath = matchedMethods.get(m.getIndex());
                     String eMethodSigFalse = m.getSignature(false);
-                    int instSize = inst.size();
+                    int instSize = inst == null ? 0: inst.size();
                     total += instSize;
                     if(methodPath == null) {
                         continue;
@@ -83,7 +80,7 @@ public class ReportHandler {
                         writer.write("\t(" + instSize + ")" + eMethodSigFalse.split("->")[1] + " -> " + m.getSignature(true).split("->")[1] + "\n");
                     }
                 }
-                writer.write(df.format(matched / total) + "\n");
+                writer.write(df.format(total == 0 ? 0: (matched / total)) + "\n");
             }
         }
         catch(IOException e) {
