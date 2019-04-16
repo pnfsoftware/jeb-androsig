@@ -73,12 +73,13 @@ class MatchingSearch {
     private FileMatches fileMatches;
     private Map<Integer, Map<Integer, Integer>> apkCallerLists;
     private boolean firstRound;
+    private boolean firstPass;
 
     private Map<String, Map<String, InnerMatch>> fileCandidates = new HashMap<>(); // file -> (classname->count)
 
     public MatchingSearch(IDexUnit dex, DexHashcodeList dexHashCodeList, DatabaseReference ref,
             DatabaseMatcherParameters params, FileMatches fileMatches,
-            Map<Integer, Map<Integer, Integer>> apkCallerLists, boolean firstRound) {
+            Map<Integer, Map<Integer, Integer>> apkCallerLists, boolean firstRound, boolean firstPass) {
         this.dex = dex;
         this.dexHashCodeList = dexHashCodeList;
         this.ref = ref;
@@ -86,6 +87,7 @@ class MatchingSearch {
         this.fileMatches = fileMatches;
         this.apkCallerLists = apkCallerLists;
         this.firstRound = firstRound;
+        this.firstPass = firstPass;
     }
 
     // TODO filter versions on ref.getSignatureLines when possible
@@ -233,6 +235,28 @@ class MatchingSearch {
         }
     }
 
+    public List<MethodSignature> getSignaturesForClassname(String file, String className, boolean exactName,
+            IDexMethod eMethod) {
+        List<MethodSignature> sigs = ref.getSignatureFile(file).getSignaturesForClassname(className, true);
+        List<? extends IInstruction> instructions = eMethod.getInstructions();
+        // filter abstracts or not
+        return sigs = sigs.stream().filter(s -> instructions == null ? s.getOpcount() == 0: s.getOpcount() != 0)
+                .collect(Collectors.toList());
+    }
+
+    public MethodSignature findMethodMatch(String file, String className, IDexMethod eMethod, String methodName) {
+        IDexPrototype proto = dex.getPrototypes().get(eMethod.getPrototypeIndex());
+        String prototypes = proto.generate(true);
+        List<MethodSignature> sigs = getSignaturesForClassname(file, className, true, eMethod);
+        sigs = sigs.stream().filter(s -> s.getMname().equals(methodName)).collect(Collectors.toList());
+        MethodSignature ms = findMethodName(dex, sigs, prototypes, true, className, new ArrayList<>(), eMethod);
+        if(ms != null) {
+            return ms;
+        }
+        String shorty = dex.getStrings().get(proto.getShortyIndex()).getValue();
+        return findMethodName(dex, sigs, shorty, false, className, new ArrayList<>(), eMethod);
+    }
+
     public MethodSignature findMethodMatch(String file, String classPath,
             Collection<MethodSignature> alreadyProcessedMethods, IDexMethod eMethod, boolean allowEmptyMName) {
         IDexPrototype proto = dex.getPrototypes().get(eMethod.getPrototypeIndex());
@@ -278,7 +302,10 @@ class MatchingSearch {
         if(sig != null) {
             return sig;
         }
-        return findMethodName(dex, sigs, shorty, false, classPath, alreadyProcessedMethods, eMethod);
+        if(!firstRound && !firstPass) {
+            return findMethodName(dex, sigs, shorty, false, classPath, alreadyProcessedMethods, eMethod);
+        }
+        return null;
     }
 
     private MethodSignature findMethodName(IDexUnit dex, List<MethodSignature> sigs, String proto,

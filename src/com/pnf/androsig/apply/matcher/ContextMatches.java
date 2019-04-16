@@ -89,30 +89,39 @@ public class ContextMatches {
     }
 
     public void saveClassMatch(String oldClass, String newClass, String innerClass) {
-        if(saveClassMatch(oldClass, newClass)) {
+        if(saveClassMatch(oldClass, newClass) == Boolean.TRUE) {
             logger.i("Found match class: %s related to innerClass %s", newClass, innerClass);
         }
     }
 
     public void saveClassMatch(String oldClass, String newClass, String className, String methodName) {
         if(oldClass.charAt(0) == 'L' && newClass.charAt(0) == 'L') {
-            if(saveClassMatch(oldClass, newClass)) {
-                logger.i("Found match class: %s by param matching from %s->%s", newClass, className, methodName);
+            if(saveClassMatch(oldClass, newClass) == Boolean.TRUE) {
+                logger.info("Found match class: %s by param matching from %s->%s", newClass, className, methodName);
             }
         }
     }
 
-    private boolean saveClassMatch(String oldClass, String newClass) {
+    public void setInvalidClass(String key) {
+        contextMatches.put(key, INVALID_MATCH);
+    }
+
+    public void setInvalidMethod(Integer key) {
+        methodMatches.put(key, INVALID_MATCH);
+    }
+
+    private Boolean saveClassMatch(String oldClass, String newClass) {
         String value = contextMatches.get(oldClass);
         if(value != null) {
             if(value.equals(INVALID_MATCH)) {
-                return false;
+                return Boolean.FALSE;
             }
             else if(!value.equals(newClass)) {
+                logger.error("Conflict: class %s has two candidates %s and new %s", oldClass, value, newClass);
                 contextMatches.put(oldClass, INVALID_MATCH);
-                return false;
+                return Boolean.FALSE;
             }
-            return true;
+            return null;
         }
         if(contextMatches.containsValue(newClass) && !oldClass.equals(newClass)) { // allow old binding to new binding
             String conflictVal = null;
@@ -122,13 +131,14 @@ public class ContextMatches {
                     break;
                 }
             }
-            logger.error("Conflict between %s and %s over %s", oldClass, conflictVal, newClass);
+            logger.error("Conflict: candidate %s has two class matching: %s and new %s", newClass, conflictVal,
+                    oldClass);
             contextMatches.put(oldClass, INVALID_MATCH);
             contextMatches.put(newClass, INVALID_MATCH);
-            return false;
+            return Boolean.FALSE;
         }
         contextMatches.put(oldClass, newClass);
-        return true;
+        return Boolean.TRUE;
     }
 
     private static List<String> parseSignatureParameters(String parameters) {
