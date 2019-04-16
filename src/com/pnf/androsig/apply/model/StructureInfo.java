@@ -32,6 +32,7 @@ import com.pnf.androsig.apply.util.MetadataGroupHandler;
 import com.pnf.androsig.apply.util.StructureHandler;
 import com.pnf.androsig.common.SignatureHandler;
 import com.pnfsoftware.jeb.core.output.ItemClassIdentifiers;
+import com.pnfsoftware.jeb.core.units.code.ICodeItem;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
@@ -183,7 +184,14 @@ public class StructureInfo {
                 if(innerClassStartName >= 0) {
                     className = className.substring(innerClassStartName + 1);
                 }
-                StructureHandler.rename(unit, className, eClass.getItemId());
+                if(innerClassStartName >= 0 && (eClass.getGenericFlags() & ICodeItem.FLAG_ANONYMOUS) != 0) {
+                    // anonymous class: do not rename, otherwise we will have strange behavior
+                    // since anonymous class _keeps_ its internal index in addition to its name
+                    // (will maybe be fixed in future versions)
+                }
+                else {
+                    StructureHandler.rename(unit, className, eClass.getItemId());
+                }
                 MetadataGroupHandler.getCodeGroupClass(unit).setData(eClass.getSignature(false),
                         ItemClassIdentifiers.CODE_ROUTINE.getId());
                 modifiedClasses.add(eClass.getIndex());

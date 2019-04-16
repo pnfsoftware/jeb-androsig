@@ -397,7 +397,7 @@ public class ContextMatches {
         return finalResolvedAttempt;
     }
     */
-    private boolean saveMethodMatch(Integer oldMethod, String newMethod) {
+    boolean saveMethodMatch(Integer oldMethod, String newMethod) {
         String value = methodMatches.get(oldMethod);
         if(value != null) {
             if(value.equals(INVALID_MATCH)) {

@@ -139,11 +139,12 @@ public class SignatureFile {
         return allSignatureCount;
     }
 
-    public List<MethodSignature> getSignaturesForClassname(String className) {
+    public List<MethodSignature> getSignaturesForClassname(String className, boolean exactName) {
         List<MethodSignature> compatibleSignatures = new ArrayList<>();
         for(Entry<String, List<MethodSignature>> entry: allTightSignatures.entrySet()) {
             for(MethodSignature sig: entry.getValue()) {
-                if(sig.getCname().startsWith(className)) {
+                if((exactName && sig.getCname().equals(className))
+                        || (!exactName && sig.getCname().startsWith(className))) {
                     compatibleSignatures.add(sig);
                 }
             }

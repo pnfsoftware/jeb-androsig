@@ -249,7 +249,7 @@ public class FileMatches {
 
     private int getLevel(DatabaseReference ref, String f, String className) {
         SignatureFile sigFile = ref.getSignatureFile(f);
-        List<MethodSignature> compatibleSignatures = sigFile.getSignaturesForClassname(className);
+        List<MethodSignature> compatibleSignatures = sigFile.getSignaturesForClassname(className, true);
         Map<String, Integer> versions = usedSigFiles.get(f);
         List<List<String>> preferedOrderList = orderVersions(versions);
         int level = 0;
