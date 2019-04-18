@@ -259,7 +259,11 @@ public class FileMatches {
         for(List<String> preferedOrder: preferedOrderList) {
             for(String prefered: preferedOrder) {
                 for(MethodSignature sig: compatibleSignatures) {
-                    if(Arrays.asList(sig.getVersions()).contains(prefered)) {
+                    String[] versionsArray = sig.getVersions();
+                    if(versionsArray == null) {
+                        return level;
+                    }
+                    if(Arrays.asList(versionsArray).contains(prefered)) {
                         return level;
                     }
                 }
@@ -316,7 +320,11 @@ public class FileMatches {
         }
         for(MethodSignature sig: candidates) {
             for(String prefered: preferedOrder.get(0)) {
-                if(Arrays.asList(sig.getVersions()).contains(prefered)) {
+                String[] versionsArray = sig.getVersions();
+                if(versionsArray == null) {
+                    return candidates;
+                }
+                if(Arrays.asList(versionsArray).contains(prefered)) {
                     newCandidates.add(sig);
                     break; // no need to check other versions
                 }

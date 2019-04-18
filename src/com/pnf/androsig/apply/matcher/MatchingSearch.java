@@ -46,11 +46,12 @@ class MatchingSearch {
             // FIXME not only the preferred order: 2 preferred orders must be equally present
             List<Integer> illegalMethods = new ArrayList<>();
             for(Entry<Integer, MethodSignature> method: classPathMethod.entrySet()) {
-                if(method.getValue().getVersions() == null) {
+                String[] versionsArray = method.getValue().getVersions();
+                if(versionsArray == null) {
                     continue;
                 }
                 boolean found = false;
-                for(String v: method.getValue().getVersions()) {
+                for(String v: versionsArray) {
                     if(versions.contains(v)) {
                         found = true;
                         break;
@@ -378,11 +379,16 @@ class MatchingSearch {
         Set<MethodSignature> filtered = new HashSet<>();
         List<List<String>> preferedOrderList = fileMatches.getOrderedVersions(f);
         boolean found = false;
-        for(List<String> preferedOrder: preferedOrderList) {
+        prefered: for(List<String> preferedOrder: preferedOrderList) {
             // save level signatures
             for(String prefered: preferedOrder) {
                 for(MethodSignature sig: results) {
-                    if(Arrays.asList(sig.getVersions()).contains(prefered)) {
+                    String[] versionsArray = sig.getVersions();
+                    if(versionsArray == null) {
+                        filtered.clear();
+                        break prefered;
+                    }
+                    if(Arrays.asList(versionsArray).contains(prefered)) {
                         found = true;
                         filtered.add(sig);
                     }

@@ -208,7 +208,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
         int innerLevel = DexUtilLocal.getInnerClassLevel(originalSignature);
         if(DexUtilLocal.isInnerClass(originalSignature)) {
             IDexClass parentClass = DexUtilLocal.getParentClass(dex, originalSignature);
-            String name = matchedClasses.get(parentClass.getIndex());
+            String name = parentClass == null ? null: matchedClasses.get(parentClass.getIndex());
             if(name != null) {
                 // parent class mapping found: what are the inner class defined for?
                 String file = fileMatches.getFileFromClass(parentClass);
@@ -384,7 +384,11 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
         List<MethodSignature> newCandidates = new ArrayList<>();
         for(MethodSignature cand: candidates) {
             for(String v: versions) {
-                if(Arrays.asList(cand.getVersions()).contains(v)) {
+                String[] versionsArray = cand.getVersions();
+                if(versionsArray == null) {
+                    return candidates;
+                }
+                if(Arrays.asList(versionsArray).contains(v)) {
                     newCandidates.add(cand);
                     break;
                 }
@@ -435,7 +439,11 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                     while(newParentClass.contains("$") && oldParentClass.contains("$")) {
                         oldParentClass = oldParentClass.substring(0, oldParentClass.lastIndexOf("$")) + ";";
                         newParentClass = newParentClass.substring(0, newParentClass.lastIndexOf("$")) + ";";
-                        int oldClassId = unit.getClass(oldParentClass).getIndex();
+                        IDexClass oldParentClassObj = unit.getClass(oldParentClass);
+                        if(oldParentClassObj == null) {
+                            continue;
+                        }
+                        int oldClassId = oldParentClassObj.getIndex();
                         IDexClass newParentClassObj = unit.getClass(newParentClass);
                         String oldParentMatch = matchedClasses.get(oldClassId);
                         if(oldParentMatch != null) {

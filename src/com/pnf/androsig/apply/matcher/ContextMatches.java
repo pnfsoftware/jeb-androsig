@@ -173,6 +173,10 @@ public class ContextMatches {
 
     public void saveCallerMatching(IDexUnit unit, String expected, String current) {
         IDexMethod m = unit.getMethod(current);
+        if(m == null) {
+            // trying to work on non renamed method. renaming failed or was not processed at this point
+            return;
+        }
         String[] expectedTokens = expected.split("->|\\(|\\)"); //0: classname, 1: methodname, 2: arguments, 3: return
         String[] currentTokens = current.split("->|\\(|\\)");
         if(expected.equals(current)) {
