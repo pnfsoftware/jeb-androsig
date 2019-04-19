@@ -30,7 +30,6 @@ import com.pnf.androsig.apply.matcher.DatabaseMatcherFactory;
 import com.pnf.androsig.apply.matcher.IDatabaseMatcher;
 import com.pnf.androsig.apply.util.MetadataGroupHandler;
 import com.pnf.androsig.apply.util.StructureHandler;
-import com.pnf.androsig.common.SignatureHandler;
 import com.pnfsoftware.jeb.core.output.ItemClassIdentifiers;
 import com.pnfsoftware.jeb.core.units.code.ICodeItem;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
@@ -120,8 +119,8 @@ public class StructureInfo {
         Map<Integer, String> newMethods = dbMatcher.postProcessRenameMethods(unit, dexHashCodeList, true);
         postProcess(unit, newClasses, newMethods);
 
-        SignatureHandler.loadAllCallerLists(unit, dbMatcher.getApkCallerLists(), dbMatcher.getMatchedClasses(),
-                dbMatcher.getMatchedMethods());
+        //SignatureHandler.loadAllCallerLists(unit, dbMatcher.getApkCallerLists(), dbMatcher.getMatchedClasses(),
+        //        dbMatcher.getMatchedMethods());
     }
 
     private void matchingVerTwo(IDexUnit unit, DexHashcodeList dexHashCodeList) {
@@ -142,8 +141,8 @@ public class StructureInfo {
             else {
                 matchedClassCount = dbMatcher.getMatchedClasses().size();
             }
-            SignatureHandler.loadAllCallerLists(unit, dbMatcher.getApkCallerLists(), dbMatcher.getMatchedClasses(),
-                    dbMatcher.getMatchedMethods());
+            //SignatureHandler.loadAllCallerLists(unit, dbMatcher.getApkCallerLists(), dbMatcher.getMatchedClasses(),
+            //        dbMatcher.getMatchedMethods());
         }
     }
 

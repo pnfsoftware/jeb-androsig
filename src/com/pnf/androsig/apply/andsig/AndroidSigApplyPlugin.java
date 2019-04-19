@@ -120,6 +120,7 @@ public class AndroidSigApplyPlugin extends AbstractEnginesPlugin {
      */
     @Override
     public void execute(IEnginesContext context, Map<String, String> executionOptions) {
+        long t0 = System.currentTimeMillis();
         IRuntimeProject prj = context.getProject(0);
         if(prj == null) {
             return;
@@ -169,6 +170,7 @@ public class AndroidSigApplyPlugin extends AbstractEnginesPlugin {
             break;
         }
         logger.info("*************** Completed! ***************");
+        logger.info("Signature recognition took %fs", (System.currentTimeMillis() - t0) / 1000.0);
         // Just a hint to help jeb free memory consumption
         struInfo = null;
         ref = null;

@@ -335,6 +335,9 @@ public class FileMatches {
 
     public static Set<String> getVersions(IDexClass parentClass, Map<Integer, MethodSignature> matchedSigMethods) {
         List<? extends IDexMethod> methods = parentClass.getMethods();
+        if(methods == null || methods.isEmpty()) {
+            return null;
+        }
         List<Set<String>> reducedVersions = null;
         for(IDexMethod eMethod: methods) {
             if(!eMethod.isInternal()) {

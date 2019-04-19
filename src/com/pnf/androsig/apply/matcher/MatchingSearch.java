@@ -152,11 +152,14 @@ class MatchingSearch {
         }
     }
 
-    public void processClass(IMatcherValidation validation, Map<Integer, String> matchedMethods,
+    public boolean processClass(IMatcherValidation validation, Map<Integer, String> matchedMethods,
             IDexClass eClass, List<? extends IDexMethod> methods, int innerLevel) {
         // quick win: to avoid loading all files, consider first if valid in best case
         // meaning: if all methods really match (without looking at prototypes)
         List<String> validFiles = getValidFiles(validation, eClass, methods);
+        if(validFiles.isEmpty() && !firstRound) {
+            return false;
+        }
 
         for(IDexMethod eMethod: methods) {
             if(!eMethod.isInternal()) {
@@ -233,11 +236,13 @@ class MatchingSearch {
                 }
             }
         }
+        return true;
     }
 
     private List<String> getValidFiles(IMatcherValidation validation, IDexClass eClass,
             List<? extends IDexMethod> methods) {
         Map<String, List<Integer>> methodsPerFile = new HashMap<>();
+        Map<String, List<Integer>> methodsPerFileSmalls = new HashMap<>();
         for(IDexMethod eMethod: methods) {
             if(!eMethod.isInternal()) {
                 continue;
@@ -263,18 +268,29 @@ class MatchingSearch {
             if(candidateFiles == null || candidateFiles.isEmpty()) {
                 continue;
             }
+            Map<String, List<Integer>> indexMap = methodsPerFile;
+            if(/*(!firstRound && !firstPass) &&*/ instructions.size() <= params.methodSizeBar) {
+                indexMap = methodsPerFileSmalls;
+            }
             for(String file: candidateFiles) {
-                List<Integer> methodIds = methodsPerFile.get(file);
+                List<Integer> methodIds = indexMap.get(file);
                 if(methodIds == null) {
                     methodIds = new ArrayList<>();
-                    methodsPerFile.put(file, methodIds);
+                    indexMap.put(file, methodIds);
                 }
                 methodIds.add(eMethod.getIndex());
             }
         }
         List<String> validFiles = new ArrayList<>();
+        // Very important: do not consider Classes with only small method matches
         for(Entry<String, List<Integer>> entry: methodsPerFile.entrySet()) {
-            if(validation.f(dex, eClass, entry.getValue())) {
+            List<Integer> allMethodsMatch = new ArrayList<>();
+            allMethodsMatch.addAll(entry.getValue());
+            List<Integer> smalls = methodsPerFileSmalls.get(entry.getKey());
+            if(smalls != null) {
+                allMethodsMatch.addAll(smalls);
+            }
+            if(validation.f(dex, eClass, allMethodsMatch)) {
                 // would ignore small methods
                 validFiles.add(entry.getKey());
             }

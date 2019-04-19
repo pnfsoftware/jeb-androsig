@@ -24,7 +24,6 @@ import com.pnf.androsig.apply.model.LibraryInfo;
 import com.pnf.androsig.apply.model.MethodSignature;
 import com.pnf.androsig.apply.model.SignatureFile;
 import com.pnf.androsig.apply.util.DexUtilLocal;
-import com.pnf.androsig.common.SignatureHandler;
 import com.pnfsoftware.jeb.core.units.code.IInstruction;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
@@ -81,6 +80,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
     private DatabaseReference ref;
     // class index --- classPath_sig
     private Map<Integer, String> matchedClasses = new HashMap<>();
+    private Set<Integer> ignoredClasses = new HashSet<>();
 
     // method index --- methodName_sig
     private Map<Integer, String> matchedMethods = new HashMap<>();
@@ -243,10 +243,17 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             }
         }
 
+        if(ignoredClasses.contains(eClass.getIndex())) {
+            return null;
+        }
         // First round: attempt to match class in its globality
         // Look for candidate files
+        boolean hasCandidates = true;
         if(fileCandidates.isEmpty()) {
-            fileCandidates.processClass(this, matchedMethods, eClass, methods, innerLevel);
+            hasCandidates = fileCandidates.processClass(this, matchedMethods, eClass, methods, innerLevel);
+            if(!hasCandidates) {
+                ignoredClasses.add(eClass.getIndex());
+            }
         }
 
         if(fileCandidates.isEmpty()) {
@@ -623,6 +630,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         return new HashMap<>();
     }
 
+    /*
     private Map<String, Integer> getBestCallers(IDexUnit unit, MethodSignature value) {
         // wrong MethodSignature? (merged): retrieve the best caller
         IDexClass cl = unit.getClass(value.getCname());
@@ -665,7 +673,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         }
         return null;
     }
-
+    */
     private List<MethodSignature> getAlreadyMatched(IDexUnit dex, String className,
             List<? extends IDexMethod> methods, MatchingSearch search, String file) {
         List<MethodSignature> alreadyMatches = new ArrayList<>();
