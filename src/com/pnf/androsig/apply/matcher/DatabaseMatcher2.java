@@ -585,7 +585,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
     @Override
     public Map<Integer, String> postProcessRenameMethods(IDexUnit unit, DexHashcodeList dexHashCodeList,
             boolean firstRound) {
-        if(apkCallerLists.isEmpty()) {
+        /*if(apkCallerLists.isEmpty()) {
             SignatureHandler.loadAllCallerLists(unit, apkCallerLists);
         }
         for(Entry<Integer, MethodSignature> match: matchedSigMethods.entrySet()) {
@@ -619,7 +619,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 // look for partial matches
                 contextMatches.saveCallerMatchings(unit, expectedCallers, calls);
             }
-        }
+        }*/
         return new HashMap<>();
     }
 
@@ -698,9 +698,9 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
     @Override
     public Map<Integer, String> postProcessRenameClasses(IDexUnit dex, DexHashcodeList dexHashCodeList,
             boolean firstRound) {
-        if(apkCallerLists.isEmpty()) {
+        /*if(apkCallerLists.isEmpty()) {
             SignatureHandler.loadAllCallerLists(dex, apkCallerLists);
-        }
+        }*/
         // maybe more parameter matches for method signatures (where only shorty matched previously)
         for(Entry<Integer, String> entry: matchedClasses.entrySet()) {
             IDexClass eClass = dex.getClass(entry.getKey());
