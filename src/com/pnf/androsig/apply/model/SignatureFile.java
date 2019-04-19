@@ -29,6 +29,7 @@ public class SignatureFile {
 
     private Map<String, List<MethodSignature>> allTightSignatures = new HashMap<>();
     private Map<String, List<MethodSignature>> allLooseSignatures = new HashMap<>();
+    private Map<String, List<MethodSignature>> allSignaturesByClassname = new HashMap<>();
     private Map<String, LibraryInfo> allLibraryInfos = new HashMap<>();
     private int allSignatureCount = 0;
 
@@ -101,14 +102,18 @@ public class SignatureFile {
     }
 
     private void storeMethodHash(MethodSignature sig) {
-        if(!allTightSignatures.containsKey(sig.getMhash_tight())) {
-            allTightSignatures.put(sig.getMhash_tight(), new ArrayList<>());
+        saveValue(allTightSignatures, sig.getMhash_tight(), sig);
+        saveValue(allLooseSignatures, sig.getMhash_loose(), sig);
+        saveValue(allSignaturesByClassname, sig.getCname(), sig);
+    }
+
+    private static void saveValue(Map<String, List<MethodSignature>> map, String key, MethodSignature value) {
+        List<MethodSignature> val = map.get(key);
+        if(val == null) {
+            val = new ArrayList<>();
+            map.put(key, val);
         }
-        allTightSignatures.get(sig.getMhash_tight()).add(sig);
-        if(!allLooseSignatures.containsKey(sig.getMhash_loose())) {
-            allLooseSignatures.put(sig.getMhash_loose(), new ArrayList<>());
-        }
-        allLooseSignatures.get(sig.getMhash_loose()).add(sig);
+        val.add(value);
     }
 
     /**
@@ -141,12 +146,16 @@ public class SignatureFile {
 
     public List<MethodSignature> getSignaturesForClassname(String className, boolean exactName) {
         List<MethodSignature> compatibleSignatures = new ArrayList<>();
-        for(Entry<String, List<MethodSignature>> entry: allTightSignatures.entrySet()) {
-            for(MethodSignature sig: entry.getValue()) {
-                if((exactName && sig.getCname().equals(className))
-                        || (!exactName && sig.getCname().startsWith(className))) {
-                    compatibleSignatures.add(sig);
-                }
+        if(exactName) {
+            List<MethodSignature> list = allSignaturesByClassname.get(className);
+            if(list != null) {
+                compatibleSignatures.addAll(list);
+            }
+            return compatibleSignatures;
+        }
+        for(Entry<String, List<MethodSignature>> entry: allSignaturesByClassname.entrySet()) {
+            if(entry.getKey().startsWith(className)) {
+                compatibleSignatures.addAll(entry.getValue());
             }
         }
         return compatibleSignatures;

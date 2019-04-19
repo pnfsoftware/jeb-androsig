@@ -33,7 +33,7 @@ public class JebContext {
         //return engctx;
     }
 
-    private static IEnginesContext getEnginesContext(String baseDir) throws JebException {
+    public static IEnginesContext getEnginesContext(String baseDir) throws JebException {
         // create or retrieve a core context (engines container)
         String licenseKey = System.getProperty("licenseKey");
         if(licenseKey == null) {

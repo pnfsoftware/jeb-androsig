@@ -22,6 +22,7 @@ import com.pnf.androsig.apply.model.MethodSignature;
 import com.pnf.androsig.apply.util.DexUtilLocal;
 import com.pnfsoftware.jeb.core.units.code.IInstruction;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
+import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexPrototype;
 import com.pnfsoftware.jeb.util.format.Strings;
@@ -105,7 +106,7 @@ class MatchingSearch {
     public void processInnerClass(String file, Map<Integer, String> matchedMethods, List<? extends IDexMethod> methods,
             String innerClass, int innerLevel, List<MethodSignature> compatibleSignatures) {
         for(IDexMethod eMethod: methods) {
-            if(!eMethod.isInternal() || matchedMethods.containsKey(eMethod.getIndex())) {
+            if(!eMethod.isInternal()) {
                 continue;
             }
             String mhash_tight = dexHashCodeList.getTightHashcode(eMethod);
@@ -134,6 +135,13 @@ class MatchingSearch {
             if(sigLine == null || sigLine.isEmpty()) {
                 continue;
             }
+            if(matchedMethods.containsKey(eMethod.getIndex())) {
+                String mname = matchedMethods.get(eMethod.getIndex());
+                sigLine = sigLine.stream().filter(s -> mname.equals(s.getMname())).collect(Collectors.toList());
+                if(sigLine.isEmpty()) {
+                    continue;
+                }
+            }
 
             Map<String, InnerMatch> classes = fileCandidates.get(file);
             if(classes == null) {
@@ -144,9 +152,14 @@ class MatchingSearch {
         }
     }
 
-    public void processClass(Map<Integer, String> matchedMethods, List<? extends IDexMethod> methods, int innerLevel) {
+    public void processClass(IMatcherValidation validation, Map<Integer, String> matchedMethods,
+            IDexClass eClass, List<? extends IDexMethod> methods, int innerLevel) {
+        // quick win: to avoid loading all files, consider first if valid in best case
+        // meaning: if all methods really match (without looking at prototypes)
+        List<String> validFiles = getValidFiles(validation, eClass, methods);
+
         for(IDexMethod eMethod: methods) {
-            if(!eMethod.isInternal() || matchedMethods.containsKey(eMethod.getIndex())) {
+            if(!eMethod.isInternal()) {
                 continue;
             }
 
@@ -170,7 +183,17 @@ class MatchingSearch {
             List<String> candidateFiles = ref.getFilesContainingTightHashcode(mhash_tight);
             if(candidateFiles != null) {
                 for(String file: candidateFiles) {
+                    if(!validFiles.contains(file)) {
+                        continue;
+                    }
                     List<MethodSignature> sigLine = ref.getSignatureLines(file, mhash_tight, true);
+                    if (matchedMethods.containsKey(eMethod.getIndex())) {
+                        String mname = matchedMethods.get(eMethod.getIndex());
+                        sigLine = sigLine.stream().filter(s -> mname.equals(s.getMname())).collect(Collectors.toList());
+                        if(sigLine.isEmpty()) {
+                            continue;
+                        }
+                    }
                     Map<String, InnerMatch> classes = fileCandidates.get(file);
                     if(classes == null) {
                         classes = new HashMap<>();
@@ -188,7 +211,18 @@ class MatchingSearch {
                 candidateFiles = ref.getFilesContainingLooseHashcode(mhash_loose);
                 if(candidateFiles != null) {
                     for(String file: candidateFiles) {
+                        if(!validFiles.contains(file)) {
+                            continue;
+                        }
                         List<MethodSignature> sigLine = ref.getSignatureLines(file, mhash_loose, false);
+                        if(matchedMethods.containsKey(eMethod.getIndex())) {
+                            String mname = matchedMethods.get(eMethod.getIndex());
+                            sigLine = sigLine.stream().filter(s -> mname.equals(s.getMname()))
+                                    .collect(Collectors.toList());
+                            if(sigLine.isEmpty()) {
+                                continue;
+                            }
+                        }
                         Map<String, InnerMatch> classes = fileCandidates.get(file);
                         if(classes == null) {
                             classes = new HashMap<>();
@@ -199,6 +233,53 @@ class MatchingSearch {
                 }
             }
         }
+    }
+
+    private List<String> getValidFiles(IMatcherValidation validation, IDexClass eClass,
+            List<? extends IDexMethod> methods) {
+        Map<String, List<Integer>> methodsPerFile = new HashMap<>();
+        for(IDexMethod eMethod: methods) {
+            if(!eMethod.isInternal()) {
+                continue;
+            }
+
+            List<? extends IInstruction> instructions = eMethod.getInstructions();
+            if(instructions == null) {
+                continue;
+            }
+
+            String mhash_tight = dexHashCodeList.getTightHashcode(eMethod);
+            if(mhash_tight == null) {
+                continue;
+            }
+            List<String> candidateFiles = ref.getFilesContainingTightHashcode(mhash_tight);
+            if(candidateFiles == null && !firstRound) {
+                String mhash_loose = dexHashCodeList.getLooseHashcode(eMethod);
+                if(mhash_loose == null) {
+                    continue;
+                }
+                candidateFiles = ref.getFilesContainingLooseHashcode(mhash_loose);
+            }
+            if(candidateFiles == null || candidateFiles.isEmpty()) {
+                continue;
+            }
+            for(String file: candidateFiles) {
+                List<Integer> methodIds = methodsPerFile.get(file);
+                if(methodIds == null) {
+                    methodIds = new ArrayList<>();
+                    methodsPerFile.put(file, methodIds);
+                }
+                methodIds.add(eMethod.getIndex());
+            }
+        }
+        List<String> validFiles = new ArrayList<>();
+        for(Entry<String, List<Integer>> entry: methodsPerFile.entrySet()) {
+            if(validation.f(dex, eClass, entry.getValue())) {
+                // would ignore small methods
+                validFiles.add(entry.getKey());
+            }
+        }
+        return validFiles;
     }
 
     private void saveTemporaryCandidate(IDexUnit dex, IDexMethod eMethod, List<MethodSignature> elts,

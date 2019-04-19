@@ -74,7 +74,7 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
  * @author Cedric Lucas
  *
  */
-class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
+class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherValidation {
     private final ILogger logger = GlobalLog.getLogger(DatabaseMatcher2.class);
 
     private DatabaseMatcherParameters params;
@@ -246,7 +246,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
         // First round: attempt to match class in its globality
         // Look for candidate files
         if(fileCandidates.isEmpty()) {
-            fileCandidates.processClass(matchedClasses, methods, innerLevel);
+            fileCandidates.processClass(this, matchedMethods, eClass, methods, innerLevel);
         }
 
         if(fileCandidates.isEmpty()) {
@@ -528,7 +528,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
         }
     }
 
-    private boolean f(IDexUnit unit, IDexClass eClass, List<Integer> matchedMethods) {
+    @Override
+    public boolean f(IDexUnit unit, IDexClass eClass, List<Integer> matchedMethods) {
         double totalInstrus = 0;
         double matchedInstrus = 0;
 
@@ -571,8 +572,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics {
                     matchedInstrus += count;
                 }
                 totalInstrus += count;
-                instruCount.put(eClass.getIndex(), totalInstrus);
             }
+            instruCount.put(eClass.getIndex(), totalInstrus);
         }
 
         if(matchedInstrus / totalInstrus <= params.matchedInstusPercentageBar) {
