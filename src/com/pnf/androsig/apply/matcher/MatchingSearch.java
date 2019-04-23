@@ -25,6 +25,7 @@ import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexPrototype;
+import com.pnfsoftware.jeb.util.collect.CollectionUtil;
 import com.pnfsoftware.jeb.util.format.Strings;
 
 /**
@@ -39,6 +40,7 @@ class MatchingSearch {
         String file;
         Set<String> versions = new HashSet<>();
         List<Integer> doNotRenameIndexes = new ArrayList<>();
+        public boolean oneMatch;
 
         public void validateVersions() {
             Map<String, Integer> versionOccurences = FileMatches.mergeVersions(null, classPathMethod.values());
@@ -157,6 +159,10 @@ class MatchingSearch {
         // quick win: to avoid loading all files, consider first if valid in best case
         // meaning: if all methods really match (without looking at prototypes)
         List<String> validFiles = getValidFiles(validation, eClass, methods);
+        if(!firstRound && !firstPass) {
+            // restrict list of available files
+            validFiles = CollectionUtil.intersection(validFiles, new ArrayList<>(fileMatches.usedSigFiles.keySet()));
+        }
         if(validFiles.isEmpty() && !firstRound) {
             return false;
         }

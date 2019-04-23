@@ -264,12 +264,22 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         for(Entry<String, Map<String, InnerMatch>> entry: fileCandidates.entrySet()) {
             for(InnerMatch cand: entry.getValue().values()) {
                 cand.validateVersions();
+                if(cand.classPathMethod.size() == 1) {
+                    // one method match can be luck match: validate other methods with signature exists
+                    cand.oneMatch = true;
+                }
             }
         }
 
         // Find small methods
         for(Entry<String, Map<String, InnerMatch>> entry: fileCandidates.entrySet()) {
             for(InnerMatch cand: entry.getValue().values()) {
+                if(cand.oneMatch || DexUtilLocal.isInnerClass(originalSignature)) {
+                    // do not artificially grow easy matches, unless file is in use
+                    if(!this.fileMatches.usedSigFiles.containsKey(cand.file)) {
+                        continue;
+                    }
+                }
                 for(IDexMethod eMethod: methods) {
                     MethodSignature strArray = cand.classPathMethod.get(eMethod.getIndex());
                     if(strArray != null) {
@@ -284,11 +294,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             }
         }
 
-        Integer higherOccurence = 0;
-        List<InnerMatch> bestCandidates = new ArrayList<>();
-        for(Entry<String, Map<String, InnerMatch>> cand: fileCandidates.entrySet()) {
-            higherOccurence = getBestCandidates(bestCandidates, cand.getValue().values(), higherOccurence);
-        }
+        List<InnerMatch> bestCandidates = filterMaxMethodsMatch(fileCandidates);
 
         InnerMatch bestCandidate = null;
         if(bestCandidates.isEmpty()) {
@@ -354,24 +360,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                         }
                     }
                 }
-                if(firstRound || unique) {
-                    return null;
-                }
-                else {
-                    // select one
-                    for(InnerMatch cand: bestCandidates) {
-                        // Several InnerMatch with same level
-                        if(fileMatches.usedSigFiles.containsKey(cand.file)) {
-                            // consider that same lib is used elsewhere == best chance
-                            bestCandidate = cand;
-                            break;
-                        }
-                    }
-
-                    if(bestCandidate == null) {
-                        bestCandidate = bestCandidates.get(0);
-                    }
-                }
+                // too much error-prone: must at least found same classname
+                return null;
             }
         }
         fileMatches.addMatchedClassFiles(eClass, bestCandidate.file);
@@ -404,7 +394,16 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         return newCandidates;
     }
 
-    private static Integer getBestCandidates(List<InnerMatch> bestCandidates, Collection<InnerMatch> candidates,
+    private static List<InnerMatch> filterMaxMethodsMatch(MatchingSearch fileCandidates) {
+        Integer higherOccurence = 0;
+        List<InnerMatch> bestCandidates = new ArrayList<>();
+        for(Entry<String, Map<String, InnerMatch>> cand: fileCandidates.entrySet()) {
+            higherOccurence = getBestCandidatesInner(bestCandidates, cand.getValue().values(), higherOccurence);
+        }
+        return bestCandidates;
+    }
+
+    private static Integer getBestCandidatesInner(List<InnerMatch> bestCandidates, Collection<InnerMatch> candidates,
             Integer higherOccurence) {
         for(InnerMatch candClass: candidates) {
             if(candClass.classPathMethod.size() > higherOccurence) {
