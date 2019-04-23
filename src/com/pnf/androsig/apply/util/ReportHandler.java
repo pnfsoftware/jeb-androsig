@@ -44,7 +44,9 @@ public class ReportHandler {
         DecimalFormat df = new DecimalFormat("#.00");
         // Generate mapping file
         File mapping = new File(System.getProperty("java.io.tmpdir"), "androsig-mapping.txt");
-        try(BufferedWriter writer = new BufferedWriter(new FileWriter(mapping));) {
+        File mappingMini = new File(System.getProperty("java.io.tmpdir"), "androsig-mapping-mini.txt");
+        try(BufferedWriter writer = new BufferedWriter(new FileWriter(mapping));
+                BufferedWriter writerMini = new BufferedWriter(new FileWriter(mappingMini));) {
             List<? extends IDexClass> classes = unit.getClasses();
             if(classes == null || classes.size() == 0) {
                 return;
@@ -58,7 +60,14 @@ public class ReportHandler {
             }
             for(Entry<String, IDexClass> cl: classesMapped.entrySet()) {
                 String eClassSigFalse = cl.getValue().getSignature(false);
-                writer.write(eClassSigFalse + " -> " + cl.getKey() + "\n");
+                String classMapping = eClassSigFalse + " -> " + cl.getKey() + "\n";
+                writer.write(classMapping);
+                boolean classWritten = false;
+                boolean classDifferent = !eClassSigFalse.equals(cl.getKey());
+                if(classDifferent) {
+                    classWritten = true;
+                    writerMini.write(classMapping);
+                }
                 List<? extends IDexMethod> methods = cl.getValue().getMethods();
                 if(methods == null || methods.size() == 0)
                     continue;
@@ -77,10 +86,24 @@ public class ReportHandler {
                         continue;
                     }else {
                         matched += instSize;
-                        writer.write("\t(" + instSize + ")" + eMethodSigFalse.split("->")[1] + " -> " + m.getSignature(true).split("->")[1] + "\n");
+                        String mMethodName = eMethodSigFalse.split("->")[1];
+                        String mNewMethodName = m.getSignature(true).split("->")[1];
+                        String mMapping = "\t(" + instSize + ")" + mMethodName + " -> " + mNewMethodName + "\n";
+                        writer.write(mMapping);
+                        if(classDifferent || !mMethodName.equals(mNewMethodName)) {
+                            if(!classWritten) {
+                                classWritten = true;
+                                writerMini.write(classMapping);
+                            }
+                            writerMini.write(mMapping);
+                        }
                     }
                 }
-                writer.write(df.format(total == 0 ? 0: (matched / total)) + "\n");
+                String coverage = df.format(total == 0 ? 0: (matched / total)) + "\n";
+                writer.write(coverage);
+                if(classWritten) {
+                    writerMini.write(coverage);
+                }
             }
         }
         catch(IOException e) {
