@@ -8,8 +8,11 @@ package com.pnf.androsig.apply.matcher;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -79,11 +82,11 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
     private DatabaseMatcherParameters params;
     private DatabaseReference ref;
     // class index --- classPath_sig
-    private Map<Integer, String> matchedClasses = new HashMap<>();
+    private Map<Integer, String> matchedClasses = new LinkedHashMap<>();
     private Set<Integer> ignoredClasses = new HashSet<>();
 
     // method index --- methodName_sig
-    private Map<Integer, String> matchedMethods = new HashMap<>();
+    private Map<Integer, String> matchedMethods = new LinkedHashMap<>();
     private Map<Integer, MethodSignature> matchedSigMethods = new HashMap<>();
 
     private ContextMatches contextMatches = new ContextMatches();
@@ -113,15 +116,28 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         if(classes == null || classes.size() == 0) {
             return;
         }
+        List<IDexClass> sortedClasses = new ArrayList<>(classes);
+        Collections.sort(classes, new Comparator<IDexClass>() {
+            @Override
+            public int compare(IDexClass o1, IDexClass o2) {
+                String sig1 = o1.getSignature(false);
+                String sig2 = o2.getSignature(false);
+                if(sig1.length() == sig2.length()) {
+                    return sig1.compareTo(sig2);
+                }
+                return Integer.compare(sig1.length(), sig2.length());
+            }
+        });
+        Collections.reverse(sortedClasses);
 
         // Fully deterministic: select the best file or nothing: let populate usedSigFiles
-        boolean processSecondPass = storeFinalCandidates(unit, classes, dexHashCodeList, firstRound, true);
+        boolean processSecondPass = storeFinalCandidates(unit, sortedClasses, dexHashCodeList, firstRound, true);
 
         fileMatches.stable = true;
 
         if(!firstRound && processSecondPass) {
             // more open: now allow to select one file amongst all matching
-            storeFinalCandidates(unit, classes, dexHashCodeList, firstRound, false);
+            storeFinalCandidates(unit, sortedClasses, dexHashCodeList, firstRound, false);
         }
 
         // expand: Add classes and methods found by context (method signature, caller)
