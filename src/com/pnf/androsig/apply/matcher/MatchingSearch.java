@@ -27,12 +27,15 @@ import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexPrototype;
 import com.pnfsoftware.jeb.util.collect.CollectionUtil;
 import com.pnfsoftware.jeb.util.format.Strings;
+import com.pnfsoftware.jeb.util.logging.GlobalLog;
+import com.pnfsoftware.jeb.util.logging.ILogger;
 
 /**
  * @author Cedric Lucas
  *
  */
 class MatchingSearch {
+    private final ILogger logger = GlobalLog.getLogger(MatchingSearch.class);
 
     class InnerMatch {
         String className;
@@ -167,6 +170,7 @@ class MatchingSearch {
             return false;
         }
 
+        List<IDexMethod> easyMatches = new ArrayList<>();
         for(IDexMethod eMethod: methods) {
             if(!eMethod.isInternal()) {
                 continue;
@@ -191,10 +195,14 @@ class MatchingSearch {
             }
             List<String> candidateFiles = ref.getFilesContainingTightHashcode(mhash_tight);
             if(candidateFiles != null) {
+                candidateFiles = CollectionUtil.intersection(validFiles, candidateFiles);
+                if(firstRound && candidateFiles.size() > 10) {
+                    // do not process here: will be considered as small method
+                    easyMatches.add(eMethod);
+                    continue;
+                }
+
                 for(String file: candidateFiles) {
-                    if(!validFiles.contains(file)) {
-                        continue;
-                    }
                     List<MethodSignature> sigLine = ref.getSignatureLines(file, mhash_tight, true);
                     if (matchedMethods.containsKey(eMethod.getIndex())) {
                         String mname = matchedMethods.get(eMethod.getIndex());
@@ -312,13 +320,12 @@ class MatchingSearch {
 
         // One class has several same sigs
         List<MethodSignature> realCandidates = elts.stream()
-                .filter(strArray -> MethodSignature.getShorty(strArray).equals(shorty)
-                        && MethodSignature.getPrototype(strArray).equals(prototype))
+                .filter(strArray -> strArray.getShorty().equals(shorty) && strArray.getPrototype().equals(prototype))
                 .collect(Collectors.toList());
         if(!realCandidates.isEmpty()) {
             List<MethodSignature> strArrays = mergeSignaturesPerClass(realCandidates);
             for(MethodSignature strArray: strArrays) {
-                String className = MethodSignature.getClassname(strArray);
+                String className = strArray.getCname();
                 if(DexUtilLocal.getInnerClassLevel(className) != innerLevel) {
                     continue;
                 }
@@ -420,7 +427,7 @@ class MatchingSearch {
             if(!isCompatibleSignature(eMethod, proto, prototype, proto, !prototype, strArray)) {
                 continue;
             }
-            if(!MethodSignature.getClassname(strArray).equals(classPath)) {
+            if(!strArray.getCname().equals(classPath)) {
                 continue;
             }
             for(MethodSignature alreadyProcessed: alreadyProcessedMethods) {

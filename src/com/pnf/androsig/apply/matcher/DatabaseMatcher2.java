@@ -500,7 +500,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         }
         for(Entry<Integer, MethodSignature> methodName_method: innerMatch.classPathMethod.entrySet()) {
             temp1.add(methodName_method.getKey());
-            String methodName = MethodSignature.getMethodName(methodName_method.getValue());
+            String methodName = methodName_method.getValue().getMname();
             if(!Strings.isBlank(methodName) && !innerMatch.doNotRenameIndexes.contains(methodName_method.getKey())) {
                 matchedMethods.put(methodName_method.getKey(), methodName);
                 matchedSigMethods.put(methodName_method.getKey(), methodName_method.getValue());
@@ -533,11 +533,11 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                     IDexPrototype proto = unit.getPrototypes().get(m.getPrototypeIndex());
                     String prototypes = proto.generate(true);
                     MethodSignature strArray = methodName_method.getValue();
-                    if(prototypes.equals(MethodSignature.getPrototype(strArray))) {
+                    if(prototypes.equals(strArray.getPrototype())) {
                         continue;
                     }
-                    contextMatches.saveParamMatching(prototypes, MethodSignature.getPrototype(strArray),
-                            innerMatch.className, MethodSignature.getMethodName(strArray));
+                    contextMatches.saveParamMatching(prototypes, strArray.getPrototype(),
+                            innerMatch.className, strArray.getMname());
                 }
             }
             else {
@@ -812,7 +812,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                                         alreadyMatches, eMethod);
                             }
                             if(strArray != null) {
-                                String newMethodName = MethodSignature.getMethodName(strArray);
+                                String newMethodName = strArray.getMname();
                                 if(newMethodName.isEmpty()) {
                                     methodNameMerged = null;
                                     break;
@@ -841,8 +841,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                             alreadyMatches.add(strArray);
 
                             // postprocess: reinject class
-                            if(!prototypes.equals(MethodSignature.getPrototype(strArray))) {
-                                contextMatches.saveParamMatching(prototypes, MethodSignature.getPrototype(strArray),
+                            if(!prototypes.equals(strArray.getPrototype())) {
+                                contextMatches.saveParamMatching(prototypes, strArray.getPrototype(),
                                         className, methodNameMerged);
                             }
                         }
