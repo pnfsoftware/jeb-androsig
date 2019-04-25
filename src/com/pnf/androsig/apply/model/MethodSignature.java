@@ -191,16 +191,12 @@ public class MethodSignature {
             return null;
         }
 
-        ml.mhash_tight = tokens[5];
+        ml.mhash_tight = tokens[5].equals("null") ? "": tokens[5];
 
-        ml.mhash_loose = tokens[6];
+        ml.mhash_loose = tokens[6].equals("null") ? "": tokens[6];
 
-        if(!tokens[7].equals("null")) {
-            ml.caller = tokens[7];
-        }
-        else {
-            ml.caller = "";
-        }
+        ml.caller = tokens[7].equals("null") ? "": tokens[7];
+
         // signature v2
         if(tokens.length > 8) {
             ml.versions = tokens[8];

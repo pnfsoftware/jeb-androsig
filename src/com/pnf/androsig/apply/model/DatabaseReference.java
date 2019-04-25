@@ -99,7 +99,7 @@ public class DatabaseReference {
             }
 
             String mhash_tight = MethodSignature.getTightSignature(subLines);
-            if(mhash_tight != null) {
+            if(mhash_tight != null && !mhash_tight.isEmpty()) {
                 Set<String> files = allTightHashcodes.get(mhash_tight);
                 if(files == null) {
                     files = new LinkedHashSet<>();
@@ -108,7 +108,7 @@ public class DatabaseReference {
                 files.add(sigFile.getAbsolutePath());
             }
             String mhash_loose = MethodSignature.getLooseSignature(subLines);
-            if(mhash_loose != null) {
+            if(mhash_loose != null && !mhash_loose.isEmpty()) {
                 Set<String> files = allLooseHashcodes.get(mhash_loose);
                 if(files == null) {
                     files = new LinkedHashSet<>();
@@ -117,7 +117,7 @@ public class DatabaseReference {
                 files.add(sigFile.getAbsolutePath());
             }
             String className = MethodSignature.getClassname(subLines);
-            if(className != null) {
+            if(className != null && !className.isEmpty()) {
                 Set<String> files = allClasses.get(className);
                 if(files == null) {
                     files = new LinkedHashSet<>();

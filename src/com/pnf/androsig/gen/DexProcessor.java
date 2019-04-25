@@ -63,8 +63,8 @@ public class DexProcessor {
 
                 IDexCodeItem ci = md.getCodeItem();
                 if(ci == null) {
-                    mhash_tight = "null";
-                    mhash_loose = "null";
+                    mhash_tight = "";
+                    mhash_loose = "";
                 }
                 else {
                     mhash_tight = SignatureHandler.generateTightHashcode(ci);

@@ -52,7 +52,7 @@ public class LibraryGenerator {
                             + transferIndexToName(dex, proc.getAllCallerLists().get(each.getKey())));
                 }
                 else {
-                    lines.add(each.getValue() + ",null");
+                    lines.add(each.getValue() + ",");
                 }
             }
         }
