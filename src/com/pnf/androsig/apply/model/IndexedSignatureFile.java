@@ -64,7 +64,17 @@ public class IndexedSignatureFile implements ISignatureFile {
         try {
             byte[] data = Files.readAllBytes(indexFile.toPath());
             int startIndex = 0;
-            int index = 0;
+            int index = validateHeader(sigFile, indexFile, data);
+            if(index < 0) {
+                if(!buildIndexFile(sigFile, indexFile)) {
+                    return false;
+                }
+                data = Files.readAllBytes(indexFile.toPath());
+                index = validateHeader(sigFile, indexFile, data);
+                if(index < 0) {
+                    return false;
+                }
+            }
             Map<String, List<Integer>> currentList = tightSignaturesIdx;
             while(index < data.length) {
                 if(IndexLine.isSeparator(data[index])) {
@@ -251,6 +261,10 @@ public class IndexedSignatureFile implements ISignatureFile {
     }
 
     public static boolean buildIndexFile(File sigFile, File indexFile) {
+        long fileSize = sigFile.length();
+        if (fileSize > Integer.MAX_VALUE) {
+            throw new RuntimeException("Signature file is too big. Is it really a signature file? If so, split it.");
+        }
         Charset utf8 = Charset.forName("UTF-8");
         Map<String, List<Integer>> tightHashcodes = new HashMap<>();
         Map<String, List<Integer>> looseHashcodes = new HashMap<>();
@@ -306,6 +320,15 @@ public class IndexedSignatureFile implements ISignatureFile {
             }
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             byte[] buffInt = new byte[4];
+
+            // header
+            writeInt(buffInt, 1, bos); // version
+            writeInt(buffInt, (int)fileSize, bos); // filesize
+            bos.write('\n');
+            bos.write('\n');
+            
+
+            // tight section
             for(Entry<String, List<Integer>> entry: tightHashcodes.entrySet()) {
                 bos.write(entry.getKey().getBytes(utf8));
                 bos.write('=');
@@ -316,6 +339,7 @@ public class IndexedSignatureFile implements ISignatureFile {
                 bos.write('\n');
             }
 
+            // loose section
             bos.write('\n');
             for(Entry<String, List<Integer>> entry: looseHashcodes.entrySet()) {
                 bos.write(entry.getKey().getBytes(utf8));
@@ -327,6 +351,7 @@ public class IndexedSignatureFile implements ISignatureFile {
                 bos.write('\n');
             }
 
+            // classes section
             bos.write('\n');
             for(Entry<String, List<Integer>> entry: classes.entrySet()) {
                 bos.write(entry.getKey().getBytes(utf8));
@@ -389,7 +414,17 @@ public class IndexedSignatureFile implements ISignatureFile {
         try {
             byte[] data = Files.readAllBytes(indexFile.toPath());
             int startIndex = 0;
-            int index = 0;
+            int index = validateHeader(sigFile, indexFile, data);
+            if(index < 0) {
+                if(!buildIndexFile(sigFile, indexFile)) {
+                    return false;
+                }
+                data = Files.readAllBytes(indexFile.toPath());
+                index = validateHeader(sigFile, indexFile, data);
+                if(index < 0) {
+                    return false;
+                }
+            }
             Map<String, Set<String>> currentList = allTightHashcodes;
             while(index < data.length) {
                 if(IndexLine.isSeparator(data[index])) {
@@ -429,6 +464,25 @@ public class IndexedSignatureFile implements ISignatureFile {
             return false;
         }
         return true;
+    }
+
+    private static int validateHeader(File sigFile, File indexFile, byte[] data) {
+        int index = 0;
+        if(data.length < 10) {
+            return -1;
+        }
+        int version = readInt(data, index);
+        index += 4;
+        if(version != 1) {
+            return -1;
+        }
+        int expectedSize = readInt(data, index);
+        index += 4;
+        if(expectedSize != sigFile.length()) {
+            return -1;
+        }
+        index += 2; // line end + section end
+        return index;
     }
 
     @Override
