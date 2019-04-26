@@ -155,9 +155,14 @@ class MatchingSearch {
 
     public boolean processClass(IMatcherValidation validation, Map<Integer, String> matchedMethods,
             IDexClass eClass, List<? extends IDexMethod> methods, int innerLevel) {
+        List<String> validFiles = getValidFiles(validation, eClass, methods);
+        return processClass(validation, matchedMethods, eClass, methods, innerLevel, validFiles);
+    }
+
+    public boolean processClass(IMatcherValidation validation, Map<Integer, String> matchedMethods, IDexClass eClass,
+            List<? extends IDexMethod> methods, int innerLevel, List<String> validFiles) {
         // quick win: to avoid loading all files, consider first if valid in best case
         // meaning: if all methods really match (without looking at prototypes)
-        List<String> validFiles = getValidFiles(validation, eClass, methods);
         if(!firstRound && !firstPass) {
             // restrict list of available files
             validFiles = CollectionUtil.intersection(validFiles, new ArrayList<>(fileMatches.usedSigFiles.keySet()));
@@ -334,7 +339,7 @@ class MatchingSearch {
                 inner.classPathMethod.put(eMethod.getIndex(), strArray);
                 if(realCandidates.size() > 1) {
                     // we can not establish which method is the good one
-                    // however, it is good to report that a matching was found (for percentage matching instructions
+                    // however, it is good to report that a matching was found (for percentage matching instructions)
                     inner.doNotRenameIndexes.add(eMethod.getIndex());
                 }
                 classes.put(className, inner);

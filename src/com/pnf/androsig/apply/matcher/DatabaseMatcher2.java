@@ -118,7 +118,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             return;
         }
         List<IDexClass> sortedClasses = new ArrayList<>(classes);
-        Collections.sort(classes, new Comparator<IDexClass>() {
+        Collections.sort(sortedClasses, new Comparator<IDexClass>() {
             @Override
             public int compare(IDexClass o1, IDexClass o2) {
                 String sig1 = o1.getSignature(false);
@@ -130,6 +130,11 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             }
         });
         Collections.reverse(sortedClasses);
+
+        if(firstRound) {
+            // clean up classes which have same name
+            bindUnrenamedClasses(unit, sortedClasses, dexHashCodeList);
+        }
 
         // Fully deterministic: select the best file or nothing: let populate usedSigFiles
         boolean processSecondPass = storeFinalCandidates(unit, sortedClasses, dexHashCodeList, firstRound, true);
@@ -192,6 +197,51 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         // GC
         dupClasses.clear();
         dupMethods.clear();
+    }
+
+    private void bindUnrenamedClasses(IDexUnit dex, List<IDexClass> classes, DexHashcodeList dexHashCodeList) {
+        for(IDexClass eClass: classes) {
+            String originalSignature = eClass.getSignature(true);
+            List<String> files = ref.getFilesContainingClass(originalSignature);
+            if(files == null) {
+                continue;
+            }
+            List<? extends IDexMethod> methods = eClass.getMethods();
+            if(methods == null || methods.size() == 0) {
+                // since signature only contains non empty classes, there is no chance that we found by matching
+                continue;
+            }
+
+            MatchingSearch fileCandidates = new MatchingSearch(dex, dexHashCodeList, ref, params, fileMatches,
+                    apkCallerLists, true, true);
+            int innerLevel = DexUtilLocal.getInnerClassLevel(originalSignature);
+            fileCandidates.processClass(this, matchedMethods, eClass, methods, innerLevel, files);
+
+            filterVersions(fileCandidates);
+
+            List<InnerMatch> candidates = new ArrayList<>();
+            for(Entry<String, Map<String, InnerMatch>> entry: fileCandidates.entrySet()) {
+                for(Entry<String, InnerMatch> entry2: entry.getValue().entrySet()) {
+                    if(entry2.getKey().equals(originalSignature)) {
+                        candidates.add(entry2.getValue());
+                    }
+                }
+            }
+            if(candidates.size() == 1) {
+                InnerMatch innerMatch = candidates.get(0);
+                fileMatches.addVersions(innerMatch.file, innerMatch.classPathMethod.values());
+                matchedClasses.put(eClass.getIndex(), innerMatch.className);
+            }
+            else {
+                fileCandidates = new MatchingSearch(dex, dexHashCodeList, ref, params, fileMatches, apkCallerLists,
+                        false, true);
+                innerLevel = DexUtilLocal.getInnerClassLevel(originalSignature);
+                fileCandidates.processClass(this, matchedMethods, eClass, methods, innerLevel, files);
+
+                filterVersions(fileCandidates);
+                candidates = new ArrayList<>();
+            }
+        }
     }
 
     private boolean storeFinalCandidates(IDexUnit unit, List<? extends IDexClass> classes,
@@ -276,39 +326,9 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             return null;
         }
 
-        // here, we clean up the methods which don't belong to same version
-        for(Entry<String, Map<String, InnerMatch>> entry: fileCandidates.entrySet()) {
-            for(InnerMatch cand: entry.getValue().values()) {
-                cand.validateVersions();
-                if(cand.classPathMethod.size() == 1) {
-                    // one method match can be luck match: validate other methods with signature exists
-                    cand.oneMatch = true;
-                }
-            }
-        }
+        filterVersions(fileCandidates);
 
-        // Find small methods
-        for(Entry<String, Map<String, InnerMatch>> entry: fileCandidates.entrySet()) {
-            for(InnerMatch cand: entry.getValue().values()) {
-                if(cand.oneMatch || DexUtilLocal.isInnerClass(originalSignature)) {
-                    // do not artificially grow easy matches, unless file is in use
-                    if(!this.fileMatches.usedSigFiles.containsKey(cand.file)) {
-                        continue;
-                    }
-                }
-                for(IDexMethod eMethod: methods) {
-                    MethodSignature strArray = cand.classPathMethod.get(eMethod.getIndex());
-                    if(strArray != null) {
-                        continue;
-                    }
-                    strArray = fileCandidates.findMethodMatch(cand.file, cand.className, cand.classPathMethod.values(),
-                            eMethod, true);
-                    if(strArray != null) {
-                        cand.classPathMethod.put(eMethod.getIndex(), strArray);
-                    }
-                }
-            }
-        }
+        findSmallMethods(fileCandidates, originalSignature, methods);
 
         List<InnerMatch> bestCandidates = filterMaxMethodsMatch(fileCandidates);
 
@@ -369,18 +389,77 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                         if(bestFile != null) {
                             for(InnerMatch cand: bestCandidates) {
                                 if(cand.file.equals(bestFile)) {
-                                    return cand;
+                                    bestCandidate = cand;
+                                    break;
                                 }
                             }
                         }
                     }
                 }
                 // too much error-prone: must at least found same classname
+                if(bestCandidate == null) {
+                    return null;
+                }
+            }
+        }
+        if(bestCandidate.oneMatch) {
+            if(DexUtilLocal.isInnerClass(originalSignature)) {
+                // TODO validate some methods from parent here
+                return null;
+            }
+            // seriously check matching class: may be a false positive
+            List<MethodSignature> allMethods = ref.getSignaturesForClassname(bestCandidate.file,
+                    bestCandidate.className, true);
+            allMethods = filterVersions(allMethods, bestCandidate.versions);
+            Set<String> methodNames = allMethods.stream().map(m -> m.getMname() + m.getPrototype())
+                    .collect(Collectors.toSet());
+            if(methodNames.size() != bestCandidate.classPathMethod.size()) {
+                // false positive most of the time: may investigate more here
+                // expect to find match by param matching, safer
                 return null;
             }
         }
         fileMatches.addMatchedClassFiles(eClass, bestCandidate.file);
         return bestCandidate;
+    }
+
+    private void filterVersions(MatchingSearch fileCandidates) {
+        // here, we clean up the methods which don't belong to same version
+        for(Entry<String, Map<String, InnerMatch>> entry: fileCandidates.entrySet()) {
+            for(InnerMatch cand: entry.getValue().values()) {
+                cand.validateVersions();
+                if(cand.classPathMethod.size() == 1) {
+                    // one method match can be luck match: validate other methods with signature exists
+                    cand.oneMatch = true;
+                }
+            }
+        }
+    }
+
+    private void findSmallMethods(MatchingSearch fileCandidates, String originalSignature,
+            List<? extends IDexMethod> methods) {
+        // Find small methods
+        for(Entry<String, Map<String, InnerMatch>> entry: fileCandidates.entrySet()) {
+            for(InnerMatch cand: entry.getValue().values()) {
+                if(cand.oneMatch || DexUtilLocal.isInnerClass(originalSignature)) {
+                    // do not artificially grow easy matches, unless file is in use
+                    if(!this.fileMatches.usedSigFiles.containsKey(cand.file)) {
+                        continue;
+                    }
+                }
+                for(IDexMethod eMethod: methods) {
+                    MethodSignature strArray = cand.classPathMethod.get(eMethod.getIndex());
+                    if(strArray != null) {
+                        continue;
+                    }
+                    strArray = fileCandidates.findMethodMatch(cand.file, cand.className, cand.classPathMethod.values(),
+                            eMethod, true);
+                    if(strArray != null) {
+                        cand.classPathMethod.put(eMethod.getIndex(), strArray);
+                    }
+                }
+            }
+        }
     }
 
     private boolean isInnerClassCandidate(IDexUnit dex, MethodSignature inner) {
