@@ -27,16 +27,12 @@ import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexPrototype;
 import com.pnfsoftware.jeb.util.collect.CollectionUtil;
 import com.pnfsoftware.jeb.util.format.Strings;
-import com.pnfsoftware.jeb.util.logging.GlobalLog;
-import com.pnfsoftware.jeb.util.logging.ILogger;
 
 /**
  * @author Cedric Lucas
  *
  */
 class MatchingSearch {
-    private final ILogger logger = GlobalLog.getLogger(MatchingSearch.class);
-
     class InnerMatch {
         String className;
         Map<Integer, MethodSignature> classPathMethod = new HashMap<>();
@@ -348,7 +344,7 @@ class MatchingSearch {
 
     public List<MethodSignature> getSignaturesForClassname(String file, String className, boolean exactName,
             IDexMethod eMethod) {
-        List<MethodSignature> sigs = ref.getSignatureFile(file).getSignaturesForClassname(className, true);
+        List<MethodSignature> sigs = ref.getSignaturesForClassname(file, className, true);
         List<? extends IInstruction> instructions = eMethod.getInstructions();
         // filter abstracts or not
         return sigs = sigs.stream().filter(s -> instructions == null ? s.getOpcount() == 0: s.getOpcount() != 0)

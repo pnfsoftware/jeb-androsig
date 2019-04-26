@@ -232,6 +232,26 @@ public class MethodSignature {
         return tokens;
     }
 
+    public static String[] parseNative(byte[] data, int startIndex, int endIndex) {
+        String[] tokens = new String[9];
+        int index = 0;
+        int iStart = startIndex;
+        for(int i = startIndex; i < endIndex; i++) {
+            if(data[i] == ',') {
+                if(index == 0 || index == 5 || index == 6) {
+                    tokens[index] = new String(data, iStart, i - iStart);
+                }
+                index++;
+                iStart = i + 1;
+            }
+        }
+        index++;
+        if(index < 8) {
+            return null;
+        }
+        return tokens;
+    }
+
     /**
      * Get exact signature of method. See {@link SignatureHandler} for more details.
      * 

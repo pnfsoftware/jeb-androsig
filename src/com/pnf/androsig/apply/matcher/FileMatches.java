@@ -21,7 +21,6 @@ import java.util.stream.Collectors;
 
 import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.MethodSignature;
-import com.pnf.androsig.apply.model.SignatureFile;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
 import com.pnfsoftware.jeb.util.collect.CollectionUtil;
@@ -248,8 +247,7 @@ public class FileMatches {
     }
 
     private int getLevel(DatabaseReference ref, String f, String className) {
-        SignatureFile sigFile = ref.getSignatureFile(f);
-        List<MethodSignature> compatibleSignatures = sigFile.getSignaturesForClassname(className, true);
+        List<MethodSignature> compatibleSignatures = ref.getSignaturesForClassname(f, className, true);
         Map<String, Integer> versions = usedSigFiles.get(f);
         List<List<String>> preferedOrderList = orderVersions(versions);
         int level = 0;

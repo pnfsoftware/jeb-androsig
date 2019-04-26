@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 import com.pnf.androsig.apply.matcher.MatchingSearch.InnerMatch;
 import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.DexHashcodeList;
+import com.pnf.androsig.apply.model.ISignatureFile;
 import com.pnf.androsig.apply.model.LibraryInfo;
 import com.pnf.androsig.apply.model.MethodSignature;
 import com.pnf.androsig.apply.model.SignatureFile;
@@ -229,9 +230,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 // parent class mapping found: what are the inner class defined for?
                 String file = fileMatches.getFileFromClass(parentClass);
                 if(file != null) {
-                    SignatureFile sigs = ref.getSignatureFile(file);
                     String innerClass = name.substring(0, name.length() - 1) + "$";
-                    List<MethodSignature> compatibleSignatures = sigs.getSignaturesForClassname(innerClass, false);
+                    List<MethodSignature> compatibleSignatures = ref.getSignaturesForClassname(file, innerClass, false);
 
                     // is there only one class that can match?
                     List<MethodSignature> candidates = MatchingSearch.mergeSignaturesPerClass(compatibleSignatures);
@@ -324,8 +324,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             TreeMap<Integer, Set<InnerMatch>> diffMatch = new TreeMap<>();
             for(InnerMatch cand: bestCandidates) {
                 Map<String, Integer> methodCountPerVersion = new HashMap<>();
-                SignatureFile sig = ref.getSignatureFile(cand.file);
-                List<MethodSignature> allTight = sig.getSignaturesForClassname(cand.className, true);
+                List<MethodSignature> allTight = ref.getSignaturesForClassname(cand.file, cand.className, true);
                 for(MethodSignature tight: allTight) {
                     String[] versions = tight.getVersions();
                     if(versions == null) {
@@ -924,7 +923,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
     @Override
     public int getAllSignatureCount() {
         int sigCount = 0;
-        for(Entry<String, SignatureFile> sig: ref.getLoadedSignatureFiles().entrySet()) {
+        for(Entry<String, ISignatureFile> sig: ref.getLoadedSignatureFiles().entrySet()) {
             if(fileMatches.usedSigFiles.containsKey(sig.getKey())) {
                 sigCount += sig.getValue().getAllSignatureCount();
             }
@@ -944,8 +943,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             String file = fileMatches.getFileFromClassId(entry.getKey());
             if(file == null) {
                 for(Entry<String, Map<String, Integer>> used: fileMatches.usedSigFiles.entrySet()) {
-                    SignatureFile fileLibs = ref.getSignatureFile(used.getKey());
-                    LibraryInfo res = fileLibs.getAllLibraryInfos().get(entry.getValue());
+                    LibraryInfo res = ref.getAllLibraryInfos(used.getKey()).get(entry.getValue());
                     if(res != null) {
                         libs.put(entry.getValue(), res);
                         break;
@@ -953,11 +951,10 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 }
             }
             else {
-                SignatureFile fileLibs = ref.getSignatureFile(file);
-                libs.put(entry.getValue(), fileLibs.getAllLibraryInfos().get(entry.getValue()));
+                LibraryInfo res = ref.getAllLibraryInfos(file).get(entry.getValue());
+                libs.put(entry.getValue(), res);
             }
         }
         return libs;
     }
-
 }

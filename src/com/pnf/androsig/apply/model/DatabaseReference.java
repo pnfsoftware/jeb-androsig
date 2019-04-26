@@ -6,15 +6,12 @@
 package com.pnf.androsig.apply.model;
 
 import java.io.File;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.pnfsoftware.jeb.util.io.IO;
 import com.pnfsoftware.jeb.util.logging.GlobalLog;
 import com.pnfsoftware.jeb.util.logging.ILogger;
 
@@ -28,15 +25,12 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
 public class DatabaseReference {
     private final ILogger logger = GlobalLog.getLogger(DatabaseReference.class);
 
-    private static final int LIMIT_LOAD = 200;
-
     /** file list containing a hashcode, with hashcode as key */
     private Map<String, Set<String>> allTightHashcodes = new HashMap<>();
     private Map<String, Set<String>> allLooseHashcodes = new HashMap<>();
     private Map<String, Set<String>> allClasses = new HashMap<>();
-    /** sigLines, with filename as key */
-    private Map<String, SignatureFile> sigLinePerFilename = new HashMap<>();
-    private List<String> loadOrder = new ArrayList<>();
+
+    private SignatureFileFactory signatureFileFactory = new SignatureFileFactory();
 
     private int allSignatureFileCount = 0;
 
@@ -56,8 +50,6 @@ public class DatabaseReference {
     }
 
     private void loadAllHashCodesTemp(File sigFolder) {
-        // ask GC before (memory cosumption can be quite high)
-        System.gc();
         Runtime rt = Runtime.getRuntime();
         long memused = rt.totalMemory() - rt.freeMemory();
         for(File f: sigFolder.listFiles()) {
@@ -72,61 +64,15 @@ public class DatabaseReference {
             }
             long newmemused = rt.totalMemory() - rt.freeMemory();
             if(newmemused - memused > 1_000_000_000L) {
+                // Attempt gc before jeb asks for memory
                 System.gc();
                 memused = rt.totalMemory() - rt.freeMemory();
             }
         }
-        // ask GC after having load all files
-        System.gc();
     }
 
     private boolean loadHashCodes(File sigFile) {
-        List<String> lines = IO.readLinesSafe(sigFile, Charset.forName("UTF-8"));
-        if(lines == null) {
-            return false;
-        }
-
-        for(String line: lines) {
-            line = line.trim();
-            if(!MethodSignature.isSignatureLine(line)) {
-                continue;
-            }
-
-            String[] subLines = MethodSignature.parseNative(line);
-            if(subLines == null) {
-                logger.warn("Invalid parameter signature line: " + line + " in file " + sigFile);
-                continue;
-            }
-
-            String mhash_tight = MethodSignature.getTightSignature(subLines);
-            if(mhash_tight != null && !mhash_tight.isEmpty()) {
-                Set<String> files = allTightHashcodes.get(mhash_tight);
-                if(files == null) {
-                    files = new LinkedHashSet<>();
-                    allTightHashcodes.put(mhash_tight, files);
-                }
-                files.add(sigFile.getAbsolutePath());
-            }
-            String mhash_loose = MethodSignature.getLooseSignature(subLines);
-            if(mhash_loose != null && !mhash_loose.isEmpty()) {
-                Set<String> files = allLooseHashcodes.get(mhash_loose);
-                if(files == null) {
-                    files = new LinkedHashSet<>();
-                    allLooseHashcodes.put(mhash_loose, files);
-                }
-                files.add(sigFile.getAbsolutePath());
-            }
-            String className = MethodSignature.getClassname(subLines);
-            if(className != null && !className.isEmpty()) {
-                Set<String> files = allClasses.get(className);
-                if(files == null) {
-                    files = new LinkedHashSet<>();
-                    allClasses.put(className, files);
-                }
-                files.add(sigFile.getAbsolutePath());
-            }
-        }
-        return true;
+        return SignatureFileFactory.populate(sigFile, allTightHashcodes, allLooseHashcodes, allClasses);
     }
 
     /**
@@ -153,32 +99,29 @@ public class DatabaseReference {
         return res == null ? null: new ArrayList<>(res);
     }
 
+    @SuppressWarnings("resource")
     public List<MethodSignature> getSignatureLines(String file, String hashcode, boolean tight) {
-        SignatureFile sigFile = getSignatureFile(file);
-        return tight ? sigFile.getAllTightSignatures().get(hashcode): sigFile.getAllLooseSignatures().get(hashcode);
+        ISignatureFile sigFile = signatureFileFactory.getSignatureFile(file);
+        return tight ? sigFile.getTightSignatures(hashcode): sigFile.getLooseSignatures(hashcode);
     }
 
-    public SignatureFile getSignatureFile(String file) {
-        SignatureFile sigFile = sigLinePerFilename.get(file);
-        if(sigFile == null) {
-            if(sigLinePerFilename.size() >= LIMIT_LOAD) {
-                // delete half
-                int deleted = LIMIT_LOAD / 2;
-                for(int i = 0; i < deleted; i++) {
-                    sigLinePerFilename.remove(loadOrder.remove(0));
-                }
-            }
-            sigFile = new SignatureFile();
-            sigFile.loadSignatures(new File(file));
-            sigLinePerFilename.put(file, sigFile);
-            // logger.info("Load %s", file);
-        }
-        loadOrder.remove(file);
-        loadOrder.add(file);
-        return sigFile;
+    @SuppressWarnings("resource")
+    public List<MethodSignature> getSignaturesForClassname(String file, String className, boolean exactName) {
+        ISignatureFile sigFile = signatureFileFactory.getSignatureFile(file);
+        return sigFile.getSignaturesForClassname(className, exactName);
     }
 
-    public Map<String, SignatureFile> getLoadedSignatureFiles() {
-        return sigLinePerFilename;
+    @SuppressWarnings("resource")
+    public Map<String, LibraryInfo> getAllLibraryInfos(String file) {
+        ISignatureFile sigFile = signatureFileFactory.getSignatureFile(file);
+        return sigFile.getAllLibraryInfos();
+    }
+
+    public Map<String, ISignatureFile> getLoadedSignatureFiles() {
+        return signatureFileFactory.getLoadedSignatureFiles();
+    }
+
+    public void close() {
+        signatureFileFactory.close();
     }
 }

@@ -76,7 +76,9 @@ class Signature implements ISignatureMetrics {
      * 
      * @return a Map (Key: the tight method signature. Value: a list of string array {libname,
      *         cname, mname, shorty})
+     * @deprecated
      */
+    @Deprecated
     public Map<String, List<MethodSignature>> getAllTightSignatures() {
         return sigFile.getAllTightSignatures();
     }
@@ -86,7 +88,9 @@ class Signature implements ISignatureMetrics {
      * 
      * @return a Map (Key: the loose method signature. Value: a list of string array {libname,
      *         cname, mname, shorty})
+     * @deprecated
      */
+    @Deprecated
     public Map<String, List<MethodSignature>> getAllLooseSignatures() {
         return sigFile.getAllLooseSignatures();
     }

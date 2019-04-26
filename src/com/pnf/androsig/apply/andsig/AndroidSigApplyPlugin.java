@@ -126,9 +126,6 @@ public class AndroidSigApplyPlugin extends AbstractEnginesPlugin {
             return;
         }
 
-        DatabaseReference ref = new DatabaseReference();
-        StructureInfo struInfo = new StructureInfo(executionOptions, ref);
-
         File sigFolder;
         try {
             sigFolder = SignatureHandler.getSignaturesFolder(context);
@@ -137,44 +134,52 @@ public class AndroidSigApplyPlugin extends AbstractEnginesPlugin {
             throw new RuntimeException(ex);
         }
 
-        // Load all hashcodes
-        ref.loadAllHashCodes(sigFolder);
+        DatabaseReference ref = new DatabaseReference();
+        StructureInfo struInfo = new StructureInfo(executionOptions, ref);
 
-        List<IDexUnit> dexlist = RuntimeProjectUtil.findUnitsByType(prj, IDexUnit.class, false);
-        for(IDexUnit dex: dexlist) {
-            DexHashcodeList dexHashCodeList = new DexHashcodeList();
-            dexHashCodeList.loadAPKHashcodes(dex);
+        try {
+            // Load all hashcodes
+            ref.loadAllHashCodes(sigFolder);
 
-            // Create MetadataGroup
-            MetadataGroupHandler.createCodeGroupMethod(dex, struInfo.getStructureResult());
-            MetadataGroupHandler.createCodeGroupClass(dex, struInfo.getStructureResult());
+            List<IDexUnit> dexlist = RuntimeProjectUtil.findUnitsByType(prj, IDexUnit.class, false);
+            for(IDexUnit dex: dexlist) {
+                DexHashcodeList dexHashCodeList = new DexHashcodeList();
+                dexHashCodeList.loadAPKHashcodes(dex);
 
-            // Apply signature
-            struInfo.rebuildStructure(dex, dexHashCodeList);
+                // Create MetadataGroup
+                MetadataGroupHandler.createCodeGroupMethod(dex, struInfo.getStructureResult());
+                MetadataGroupHandler.createCodeGroupClass(dex, struInfo.getStructureResult());
 
-            if(Thread.currentThread().isInterrupted()) {
-                logger.info("Tread Interrupted!");
-                return;
+                // Apply signature
+                struInfo.rebuildStructure(dex, dexHashCodeList);
+
+                if(Thread.currentThread().isInterrupted()) {
+                    logger.info("Tread Interrupted!");
+                    return;
+                }
+
+                // Notify system
+                dex.notifyListeners(new JebEvent(J.UnitChange));
+                // Output result
+                ReportHandler.generateRecord(dex, struInfo, ref);
+
+                /************* For testing *************/
+                //ReportHandler.serializeReport(dex, struInfo);
+                //ReportHandler.deserializeReport(dex, struInfo);          
+                //generatePaper(dex);
+
+                break;
             }
-
-            // Notify system
-            dex.notifyListeners(new JebEvent(J.UnitChange));
-            // Output result
-            ReportHandler.generateRecord(dex, struInfo, ref);
-
-            /************* For testing *************/
-            //ReportHandler.serializeReport(dex, struInfo);
-            //ReportHandler.deserializeReport(dex, struInfo);          
-            //generatePaper(dex);
-
-            break;
+            logger.info("*************** Completed! ***************");
+            logger.info("Signature recognition took %fs", (System.currentTimeMillis() - t0) / 1000.0);
         }
-        logger.info("*************** Completed! ***************");
-        logger.info("Signature recognition took %fs", (System.currentTimeMillis() - t0) / 1000.0);
-        // Just a hint to help jeb free memory consumption
-        struInfo = null;
-        ref = null;
-        System.gc();
+        finally {
+            // Just a hint to help jeb free memory consumption
+            struInfo = null;
+            ref.close();
+            ref = null;
+            System.gc();
+        }
     }
 
     /**
