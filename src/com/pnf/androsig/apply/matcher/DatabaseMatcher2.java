@@ -28,6 +28,7 @@ import com.pnf.androsig.apply.model.LibraryInfo;
 import com.pnf.androsig.apply.model.MethodSignature;
 import com.pnf.androsig.apply.model.SignatureFile;
 import com.pnf.androsig.apply.util.DexUtilLocal;
+import com.pnf.androsig.common.SignatureHandler;
 import com.pnfsoftware.jeb.core.units.code.IInstruction;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
@@ -685,7 +686,10 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
     @Override
     public Map<Integer, String> postProcessRenameMethods(IDexUnit unit, DexHashcodeList dexHashCodeList,
             boolean firstRound) {
-        /*if(apkCallerLists.isEmpty()) {
+        if (!params.useCallerList) {
+            return new HashMap<>();
+        }
+        if(params.useCallerList && apkCallerLists.isEmpty()) {
             SignatureHandler.loadAllCallerLists(unit, apkCallerLists);
         }
         for(Entry<Integer, MethodSignature> match: matchedSigMethods.entrySet()) {
@@ -719,11 +723,10 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 // look for partial matches
                 contextMatches.saveCallerMatchings(unit, expectedCallers, calls);
             }
-        }*/
+        }
         return new HashMap<>();
     }
 
-    /*
     private Map<String, Integer> getBestCallers(IDexUnit unit, MethodSignature value) {
         // wrong MethodSignature? (merged): retrieve the best caller
         IDexClass cl = unit.getClass(value.getCname());
@@ -732,9 +735,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         }
         String f = fileMatches.getMatchedClassFile(cl, value.getCname(), ref);
         if(f != null) {
-            SignatureFile file = ref.getSignatureFile(f);
             List<MethodSignature> candidates = new ArrayList<>();
-            List<MethodSignature> compatibleSignatures = file.getSignaturesForClassname(value.getCname(), true);
+            List<MethodSignature> compatibleSignatures = ref.getSignaturesForClassname(f, value.getCname(), true);
             for(MethodSignature sig: compatibleSignatures) {
                 if(sig.getMname().equals(value.getMname()) && sig.getPrototype().equals(value.getPrototype())
                         && !Strings.isBlank(sig.getCaller())) {
@@ -766,7 +768,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         }
         return null;
     }
-    */
+
     private List<MethodSignature> getAlreadyMatched(IDexUnit dex, String className,
             List<? extends IDexMethod> methods, MatchingSearch search, String file) {
         List<MethodSignature> alreadyMatches = new ArrayList<>();
@@ -799,9 +801,9 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
     @Override
     public Map<Integer, String> postProcessRenameClasses(IDexUnit dex, DexHashcodeList dexHashCodeList,
             boolean firstRound) {
-        /*if(apkCallerLists.isEmpty()) {
+        if(params.useCallerList && apkCallerLists.isEmpty()) {
             SignatureHandler.loadAllCallerLists(dex, apkCallerLists);
-        }*/
+        }
         // maybe more parameter matches for method signatures (where only shorty matched previously)
         for(Entry<Integer, String> entry: matchedClasses.entrySet()) {
             IDexClass eClass = dex.getClass(entry.getKey());

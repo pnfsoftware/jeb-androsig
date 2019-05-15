@@ -22,6 +22,7 @@ public class DatabaseMatcherParameters {
     // Parameters
     public int methodSizeBar = 0; // will skip method if its instruction size is no great than methodSizeBar
     public double matchedInstusPercentageBar = 0; // will skip the class if (total matched instructions / total instructions) is no greater than matchedMethodsPercentageBar
+    public boolean useCallerList = false;
 
     public static DatabaseMatcherParameters parseParameters(Map<String, String> executionOptions) {
         DatabaseMatcherParameters params = new DatabaseMatcherParameters();

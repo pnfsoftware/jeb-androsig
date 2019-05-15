@@ -518,7 +518,7 @@ class MatchingSearch {
         }
 
         // secondly, filter by caller
-        /*if(apkCallerLists.isEmpty()) {
+        if(!params.useCallerList ||  apkCallerLists.isEmpty()) {
             return;
         }
         Map<Integer, Integer> callers = apkCallerLists.get(eMethod.getIndex());
@@ -547,7 +547,7 @@ class MatchingSearch {
         if(!filtered.isEmpty()) {
             results.clear();
             results.addAll(filtered);
-        }*/
+        }
     }
 
     static MethodSignature mergeSignature(List<MethodSignature> results) {
