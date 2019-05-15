@@ -94,6 +94,12 @@ public class ContextMatches {
         }
     }
 
+    public void saveClassMatchInherit(String oldClass, String newClass, String inherit) {
+        if(saveClassMatch(oldClass, newClass) == Boolean.TRUE) {
+            logger.i("Found match class: %s related to inherited %s", newClass, inherit);
+        }
+    }
+
     public void saveClassMatch(String oldClass, String newClass, String className, String methodName) {
         if(oldClass.charAt(0) == 'L' && newClass.charAt(0) == 'L') {
             if(saveClassMatch(oldClass, newClass) == Boolean.TRUE) {

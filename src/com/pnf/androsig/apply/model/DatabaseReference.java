@@ -124,4 +124,10 @@ public class DatabaseReference {
     public void close() {
         signatureFileFactory.close();
     }
+
+    @SuppressWarnings("resource")
+    public List<MethodSignature> getParentForClassname(String file, String className) {
+        ISignatureFile sigFile = signatureFileFactory.getSignatureFile(file);
+        return sigFile.getParent(className);
+    }
 }

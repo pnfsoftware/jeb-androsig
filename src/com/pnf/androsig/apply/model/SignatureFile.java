@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
 import com.pnfsoftware.jeb.util.encoding.Conversion;
 import com.pnfsoftware.jeb.util.io.IO;
@@ -33,6 +34,7 @@ public class SignatureFile implements ISignatureFile {
     private Map<String, List<MethodSignature>> allTightSignatures = new HashMap<>();
     private Map<String, List<MethodSignature>> allLooseSignatures = new HashMap<>();
     private Map<String, List<MethodSignature>> allSignaturesByClassname = new HashMap<>();
+    private Map<String, List<MethodSignature>> allMetaByClassname = new HashMap<>();
     private Map<String, LibraryInfo> allLibraryInfos = new HashMap<>();
     private int allSignatureCount = 0;
 
@@ -81,8 +83,12 @@ public class SignatureFile implements ISignatureFile {
 
             MethodSignature ml = MethodSignature.parse(line);
             if(ml == null) {
-                logger.warn("Invalid signature line: %s", line);
-                continue;
+                ml = MethodSignature.parse(line, false);
+                if(ml == null) {
+                    logger.warn("Invalid signature line: %s", line);
+                    continue;
+                }
+                saveValue(allMetaByClassname, ml.getCname(), ml);
             }
 
             mllist.add(ml);
@@ -198,6 +204,18 @@ public class SignatureFile implements ISignatureFile {
             if(entry.getKey().startsWith(className)) {
                 compatibleSignatures.addAll(entry.getValue());
             }
+        }
+        return compatibleSignatures;
+    }
+
+    @Override
+    public List<MethodSignature> getParent(String className) {
+        List<MethodSignature> compatibleSignatures = new ArrayList<>();
+        List<MethodSignature> list = allMetaByClassname.get(className);
+        if(list != null) {
+            compatibleSignatures.addAll(list);
+            compatibleSignatures = compatibleSignatures.stream().filter(m -> m.getMname().equals("<parent>"))
+                    .collect(Collectors.toList());
         }
         return compatibleSignatures;
     }

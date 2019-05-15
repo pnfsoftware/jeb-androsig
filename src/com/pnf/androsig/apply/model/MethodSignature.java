@@ -18,7 +18,10 @@
 
 package com.pnf.androsig.apply.model;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.pnf.androsig.common.SignatureHandler;
@@ -117,13 +120,44 @@ public class MethodSignature {
         return getTargetCaller(caller);
     }
 
+    public List<String> getTargetSuperType() {
+        if(caller.isEmpty()) {
+            return null;
+        }
+        String[] parents = caller.split("\\|\\|");
+        if(parents.length == 0 || parents[0].isEmpty()) {
+            return null;
+        }
+        return getParentClasses(parents[0]);
+    }
+
+    public List<String> getTargetInterfaces() {
+        if(caller.isEmpty()) {
+            return null;
+        }
+        String[] parents = caller.split("\\|\\|");
+        if(parents.length != 2) {
+            return null;
+        }
+        return getParentClasses(parents[1]);
+    }
+
+    private static List<String> getParentClasses(String parent) {
+        List<String> targetCallerList = new ArrayList<>();
+        if(parent.isEmpty()) {
+            return targetCallerList;
+        }
+        String[] targetCallers = parent.split("\\|");
+        targetCallerList.addAll(Arrays.asList(targetCallers));
+        return targetCallerList;
+    }
+
     public static Map<String, Integer> getTargetCaller(String caller) {
         Map<String, Integer> targetCallerList = new HashMap<>();
         if(caller.isEmpty()) {
             return targetCallerList;
         }
         String[] targetCallers = caller.split("\\|");
-        targetCallerList.clear();
         for(int i = 0; i < targetCallers.length; i++) {
             String[] tokens = targetCallers[i].split("=");
             targetCallerList.put(tokens[0], Integer.parseInt(tokens[1]));
@@ -160,6 +194,10 @@ public class MethodSignature {
      *         tight signature and loose signature)
      */
     public static MethodSignature parse(String line) {
+        return parse(line, true);
+    }
+
+    public static MethodSignature parse(String line, boolean strict) {
         String[] tokens = line.trim().split(",");
         if(tokens.length < 8) {
             return null;
@@ -177,12 +215,12 @@ public class MethodSignature {
         }
 
         ml.shorty = tokens[2];
-        if(ml.shorty.isEmpty()) {
+        if(strict && ml.shorty.isEmpty()) {
             return null;
         }
 
         ml.prototype = tokens[3];
-        if(ml.prototype.isEmpty()) {
+        if(strict && ml.prototype.isEmpty()) {
             return null;
         }
 

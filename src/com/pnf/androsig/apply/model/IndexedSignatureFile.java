@@ -46,6 +46,7 @@ public class IndexedSignatureFile implements ISignatureFile {
     private Map<String, List<MethodSignature>> tightSignatures = new HashMap<>();
     private Map<String, List<MethodSignature>> looseSignatures = new HashMap<>();
     private Map<String, List<MethodSignature>> signaturesByClassname = new HashMap<>();
+    private Map<String, List<MethodSignature>> metaByClassname = new HashMap<>();
     private Map<String, LibraryInfo> allLibraryInfos = new HashMap<>();
     private int allSignatureCount = 0;
 
@@ -181,8 +182,7 @@ public class IndexedSignatureFile implements ISignatureFile {
     public List<MethodSignature> getTightSignatures(String hashcode) {
         List<MethodSignature> res = tightSignatures.get(hashcode);
         if (res == null) {
-            res = load(tightSignaturesIdx, hashcode);
-            tightSignatures.put(hashcode, res);
+            res = load(tightSignaturesIdx, hashcode, tightSignatures);
         }
         if(res.isEmpty()) {
             return null;
@@ -190,8 +190,16 @@ public class IndexedSignatureFile implements ISignatureFile {
         return res;
     }
 
-    private List<MethodSignature> load(Map<String, List<Integer>> mapIdx, String hashcode) {
+    private List<MethodSignature> load(Map<String, List<Integer>> mapIdx, String hashcode,
+            Map<String, List<MethodSignature>> map) {
+        return load(mapIdx, hashcode, map, null);
+    }
+
+    private List<MethodSignature> load(Map<String, List<Integer>> mapIdx, String hashcode,
+            Map<String, List<MethodSignature>> map, Map<String, List<MethodSignature>> mapmeta) {
         List<MethodSignature> sigs = new ArrayList<>();
+        List<MethodSignature> metaSigs = new ArrayList<>();
+        map.put(hashcode, sigs);
         try {
             if (f == null) {
                 f = new RandomAccessFile(sigFile, "r");
@@ -211,6 +219,13 @@ public class IndexedSignatureFile implements ISignatureFile {
                 if(m != null) {
                     sigs.add(m);
                 }
+                else if(mapmeta != null) {
+                    m = MethodSignature.parse(line, false);
+                    if(m != null) {
+                        metaSigs.add(m);
+                        mapmeta.put(hashcode, metaSigs);
+                    }
+                }
             }
             return sigs;
         }
@@ -224,8 +239,7 @@ public class IndexedSignatureFile implements ISignatureFile {
     public List<MethodSignature> getLooseSignatures(String hashcode) {
         List<MethodSignature> res = looseSignatures.get(hashcode);
         if(res == null) {
-            res = load(looseSignaturesIdx, hashcode);
-            looseSignatures.put(hashcode, res);
+            res = load(looseSignaturesIdx, hashcode, looseSignatures);
         }
         if(res.isEmpty()) {
             return null;
@@ -239,8 +253,7 @@ public class IndexedSignatureFile implements ISignatureFile {
         if(exactName) {
             List<MethodSignature> res = signaturesByClassname.get(className);
             if(res == null) {
-                res = load(signaturesByClassnameIdx, className);
-                signaturesByClassname.put(className, res);
+                res = load(signaturesByClassnameIdx, className, signaturesByClassname, metaByClassname);
             }
             return res;
         }
@@ -253,6 +266,13 @@ public class IndexedSignatureFile implements ISignatureFile {
             }
         }
         return compatibleSignatures;
+    }
+
+    @Override
+    public List<MethodSignature> getParent(String className) {
+        // load
+        getSignaturesForClassname(className, true);
+        return metaByClassname.get(className);
     }
 
     @Override

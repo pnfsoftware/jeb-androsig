@@ -25,4 +25,6 @@ public interface ISignatureFile extends Closeable {
 
     int getAllSignatureCount();
 
+    List<MethodSignature> getParent(String className);
+
 }

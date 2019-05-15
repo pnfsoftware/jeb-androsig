@@ -55,6 +55,9 @@ public class LibraryGenerator {
                     lines.add(each.getValue() + ",");
                 }
             }
+            for(Map.Entry<Integer, String> each: proc.getHierarchyMap().entrySet()) {
+                lines.add(each.getValue());
+            }
         }
 
         // sort to have an absolute reference

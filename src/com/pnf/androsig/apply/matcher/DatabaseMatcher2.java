@@ -29,6 +29,7 @@ import com.pnf.androsig.apply.model.MethodSignature;
 import com.pnf.androsig.apply.model.SignatureFile;
 import com.pnf.androsig.apply.util.DexUtilLocal;
 import com.pnf.androsig.common.SignatureHandler;
+import com.pnfsoftware.jeb.core.units.code.ICodeType;
 import com.pnfsoftware.jeb.core.units.code.IInstruction;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
@@ -933,6 +934,42 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 }
             }
             while(matchedMethodsSize != alreadyMatches.size());
+
+            // inject inheritance (sometimes only way for empty classes)
+            if(f != null) {
+                List<MethodSignature> allMethods = ref.getParentForClassname(f, className);
+                if(allMethods != null && allMethods.size() == 1) {
+                    List<String> supertypes = allMethods.get(0).getTargetSuperType();
+                    List<String> interfaces = allMethods.get(0).getTargetInterfaces();
+                    if(supertypes != null && !supertypes.isEmpty()) {
+                        String supertype = supertypes.get(0);
+                        contextMatches.saveClassMatchInherit(eClass.getSupertypes().get(0).getSignature(true),
+                                supertype, className);
+                    }
+                    if(interfaces != null && !interfaces.isEmpty()) {
+                        List<? extends ICodeType> realInterfaces = eClass.getImplementedInterfaces();
+                        if(realInterfaces.size() == interfaces.size()) {
+                            // remove same name
+                            for(int i = 0; i < realInterfaces.size(); i++) {
+                                String realSig = realInterfaces.get(i).getSignature(true);
+                                for(int j = 0; j < interfaces.size(); j++) {
+                                    String sig = interfaces.get(j);
+                                    if(realSig.equals(sig)) {
+                                        realInterfaces.remove(i);
+                                        i--;
+                                        interfaces.remove(j);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if(realInterfaces.size() == 1) {
+                            contextMatches.saveClassMatchInherit(realInterfaces.get(0).getSignature(true),
+                                    interfaces.get(0), className);
+                        }
+                    }
+                } // else TODO pick right version or parent data not available
+            }
         }
 
         return new HashMap<>();

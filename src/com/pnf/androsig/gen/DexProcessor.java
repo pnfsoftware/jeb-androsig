@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.pnf.androsig.common.SignatureHandler;
+import com.pnfsoftware.jeb.core.units.code.ICodeType;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexCodeItem;
@@ -30,6 +31,7 @@ public class DexProcessor {
 
     private Map<Integer, Map<Integer, Integer>> allCallerLists = new HashMap<>();
     private Map<Integer, String> sigMap = new HashMap<>();
+    private Map<Integer, String> hierarchyMap = new HashMap<>();
 
     public boolean processDex(IDexUnit dex) {
         if(!dex.isProcessed()) {
@@ -47,6 +49,7 @@ public class DexProcessor {
             if(methods == null || methods.size() == 0) {
                 continue;
             }
+            String classname = eClass.getClassType().getSignature(true);
             for(IDexMethod m: methods) {
                 if(!m.isInternal()) {
                     continue;
@@ -76,7 +79,7 @@ public class DexProcessor {
                     continue;
                 }
                 StringBuilder s = new StringBuilder();
-                s.append(dex.getTypes().get(m.getClassTypeIndex()).getSignature(true)).append(',');
+                s.append(classname).append(',');
                 s.append(m.getName(true)).append(',');
                 IDexPrototype proto = dex.getPrototypes().get(m.getPrototypeIndex());
                 s.append(proto.getShorty()).append(',');
@@ -89,6 +92,31 @@ public class DexProcessor {
 
                 methodCount++;
             }
+            // add hierarchy
+            List<? extends ICodeType> superTypes = eClass.getSupertypes();
+            List<? extends ICodeType> interfaces = eClass.getImplementedInterfaces();
+            StringBuilder s = new StringBuilder();
+            s.append(classname).append(",<parent>,,,0,,,");
+            StringBuilder ss = new StringBuilder();
+            if(superTypes != null && !superTypes.isEmpty()) {
+                if(!(superTypes.size() == 1 && superTypes.get(0).getSignature(true).equals("Ljava/lang/Object;"))) {
+                    for(ICodeType su: superTypes) {
+                        ss.append(su.getSignature(true)).append('|');
+                    }
+                    ss.deleteCharAt(ss.length() - 1);
+                }
+            }
+            StringBuilder si = new StringBuilder();
+            if(interfaces != null && !interfaces.isEmpty()) {
+                for(ICodeType su: interfaces) {
+                    si.append(su.getSignature(true)).append('|');
+                }
+                si.deleteCharAt(si.length() - 1);
+            }
+            if(ss.length() != 0 || si.length() != 0) {
+                s.append(ss).append("||").append(si);
+            }
+            hierarchyMap.put(eClass.getIndex(), s.toString());
         }
         return true;
     }
@@ -103,6 +131,10 @@ public class DexProcessor {
 
     public Map<Integer, String> getSigMap() {
         return sigMap;
+    }
+
+    public Map<Integer, String> getHierarchyMap() {
+        return hierarchyMap;
     }
 
 }
