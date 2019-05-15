@@ -31,6 +31,7 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
 
 public class ReportHandler {
     private static final ILogger logger = GlobalLog.getLogger(ReportHandler.class);
+
     /**
      * Generate report.
      * 
@@ -45,8 +46,10 @@ public class ReportHandler {
         // Generate mapping file
         File mapping = new File(System.getProperty("java.io.tmpdir"), "androsig-mapping.txt");
         File mappingMini = new File(System.getProperty("java.io.tmpdir"), "androsig-mapping-mini.txt");
+        File mappingTiny = new File(System.getProperty("java.io.tmpdir"), "androsig-mapping-tiny.txt");
         try(BufferedWriter writer = new BufferedWriter(new FileWriter(mapping));
-                BufferedWriter writerMini = new BufferedWriter(new FileWriter(mappingMini));) {
+                BufferedWriter writerMini = new BufferedWriter(new FileWriter(mappingMini));
+                BufferedWriter writerTiny = new BufferedWriter(new FileWriter(mappingTiny));) {
             List<? extends IDexClass> classes = unit.getClasses();
             if(classes == null || classes.size() == 0) {
                 return;
@@ -63,10 +66,15 @@ public class ReportHandler {
                 String classMapping = eClassSigFalse + " -> " + cl.getKey() + "\n";
                 writer.write(classMapping);
                 boolean classWritten = false;
+                boolean tinyClassWritten = false;
                 boolean classDifferent = !eClassSigFalse.equals(cl.getKey());
                 if(classDifferent) {
                     classWritten = true;
                     writerMini.write(classMapping);
+                    if(!isSamePackage(eClassSigFalse, cl.getKey(), 2)) {
+                        tinyClassWritten = true;
+                        writerTiny.write(classMapping);
+                    }
                 }
                 List<? extends IDexMethod> methods = cl.getValue().getMethods();
                 if(methods == null || methods.size() == 0)
@@ -96,6 +104,9 @@ public class ReportHandler {
                                 writerMini.write(classMapping);
                             }
                             writerMini.write(mMapping);
+                            if(tinyClassWritten) {
+                                writerTiny.write(mMapping);
+                            }
                         }
                     }
                 }
@@ -103,6 +114,9 @@ public class ReportHandler {
                 writer.write(coverage);
                 if(classWritten) {
                     writerMini.write(coverage);
+                }
+                if(tinyClassWritten) {
+                    writerTiny.write(coverage);
                 }
             }
         }
@@ -189,6 +203,25 @@ public class ReportHandler {
         }
     }
     
+    private static boolean isSamePackage(String c1, String c2, int depth) {
+        //c2 = c2.replace("Lretrofit2/", "Lb/");
+        //c2 = c2.replace("Lokio/", "La/");
+        String[] c1Array = c1.split("/");
+        String[] c2Array = c2.split("/");
+        if(c1Array.length == c2Array.length && c1Array.length > 1 && c1Array.length <= depth) {
+            depth = c1Array.length - 1;
+        }
+        if(c1Array.length > depth && c2Array.length > depth) {
+            for(int i = 0; i < depth; i++) {
+                if(!c1Array[i].equals(c2Array[i])) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
     private static int getInterfaceAndEmptyClassCount(IDexUnit dex) {
         int count = 0;
         for(IDexClass each: dex.getClasses()) {
