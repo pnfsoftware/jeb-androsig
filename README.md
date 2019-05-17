@@ -4,11 +4,14 @@
 
 The purpose of this plugin is to help deobfuscate obfuscated applications. Using our generic collection of signatures for common libraries, library code can be recognized; methods and classes can be renamed; package hierarchies can be rebuilt. 
 
-Minimum JEB version: [2.3 Pro](https://www.pnfsoftware.com/jeb2/)
+Minimum JEB version: [JEB 3.3](https://www.pnfsoftware.com/)
 
-Tutorial on how to use: [Blog post](https://www.pnfsoftware.com/blog/jeb-library-code-matching-for-android/) (important read)
+Tutorials on how to use:
 
-Remember to download a signatures bundle for common libraries, eg [this one](http://jebdecompiler2.s3.amazonaws.com/androsig_db_20160901.zip), as instructed in the tutorial linked.
+- [Post on Androidsig 1.0](https://www.pnfsoftware.com/blog/jeb-library-code-matching-for-android/) (important read)
+- [Post on Androsig 1.1](https://www.pnfsoftware.com/blog/new-version-of-androsig)
+
+Remember to download a [signatures bundle of common libraries](https://s3-us-west-2.amazonaws.com/jebdecompiler2/androsig_1.1_db_20190515.zip), as instructed in the tutorial linked.
 
 ## Building from Source
 
@@ -32,7 +35,7 @@ Simply drop plugin into [JEB_FOLDER]/coreplugins folder and restart JEB.
 
 ### Running Signature Generator plugin
 
-1. In JEB2, click `File -> Open` to open an android apk.
+1. In JEB, click `File -> Open` to open an android apk.
 2. Select `File -> Engines -> Execute` and select the generator plugin.
 3. Enter the library name (usually the same as application name) and click `OK`.
 4. The signature file (.sig) will be generated in `[JEB_FOLDER]/coreplugins/android_sigs` folder.
@@ -41,7 +44,7 @@ Simply drop plugin into [JEB_FOLDER]/coreplugins folder and restart JEB.
 
 Please make sure all your signature files are in the `[JEB_FOLDER]/coreplugins/android_sigs` folder.
 
-1. In JEB2, click `File -> Open` to open an android apk.
+1. In JEB, click `File -> Open` to open an android apk.
 2. Select `File -> Engines -> Execute` and select the Recognizer plugin.
 3. Customize the matching parameters if need ba and click `OK`.
 4. The signature file (.sig) will be generated in `[JEB_FOLDER]/coreplugins/android_sigs` folder.
