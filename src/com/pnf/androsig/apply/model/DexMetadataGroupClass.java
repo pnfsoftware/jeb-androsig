@@ -22,9 +22,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.pnfsoftware.jeb.client.Licensing;
 import com.pnfsoftware.jeb.core.output.AddressConversionPrecision;
 import com.pnfsoftware.jeb.core.units.MetadataGroup;
 import com.pnfsoftware.jeb.core.units.MetadataGroupType;
+import com.pnfsoftware.jeb.util.serialization.annotations.Ser;
+import com.pnfsoftware.jeb.util.serialization.annotations.SerId;
 
 /**
  * Metadata group with loose matching on Java FQ-name.
@@ -32,9 +35,11 @@ import com.pnfsoftware.jeb.core.units.MetadataGroupType;
  * @author Ruoxiao Wang
  *
  */
+@Ser
 public class DexMetadataGroupClass extends MetadataGroup {
-
-    private Map<String, Object> cmap = new HashMap<>();
+    @SerId(1)
+    private Map<String, Object> cmap = new HashMap<>();  // careful, value types must be serializable (Integer only in this project)
+    @SerId(2)
     private final IStructureResult struRes;
 
     public DexMetadataGroupClass(String name, MetadataGroupType type, IStructureResult struRes) {
@@ -87,6 +92,13 @@ public class DexMetadataGroupClass extends MetadataGroup {
      */
     @Override
     public boolean setData(String classAddress, Object data) {
+        if(!(data instanceof Integer)) {
+            if(Licensing.isDebugBuild()) {
+                throw new RuntimeException("Unexpected metadata value of type: " + (data == null ? null: data.getClass().getSimpleName()));
+            }
+            return false;
+        }
+
         cmap.put(classAddress, data);
         return true;
     }

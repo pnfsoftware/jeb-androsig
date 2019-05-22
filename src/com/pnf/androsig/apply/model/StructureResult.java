@@ -11,17 +11,22 @@ import java.util.Map;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
+import com.pnfsoftware.jeb.util.serialization.annotations.Ser;
+import com.pnfsoftware.jeb.util.serialization.annotations.SerId;
 
 /**
  * @author Cedric Lucas
  *
  */
+@Ser
 public class StructureResult implements IStructureResult {
 
     // method map (method.getSignature(false), method.getSignature(true))
     // used by DexMetadataGroup
-    private Map<String, String> matchedMethods_new_orgPath = new HashMap<>();;
-    private Map<String, String> matchedClasses_new_orgPath = new HashMap<>();;
+    @SerId(1)
+    private Map<String, String> matchedMethods_new_orgPath = new HashMap<>();
+    @SerId(2)
+    private Map<String, String> matchedClasses_new_orgPath = new HashMap<>();
 
     @Override
     public Map<String, String> getMatchedMethods_new_orgPath() {

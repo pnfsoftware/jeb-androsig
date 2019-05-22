@@ -7,10 +7,13 @@ package com.pnf.androsig.apply.model;
 
 import java.util.Map;
 
+import com.pnfsoftware.jeb.util.serialization.annotations.Ser;
+
 /**
  * @author Cedric Lucas
  *
  */
+@Ser
 public interface IStructureResult {
     /**
      * Get method original signature through new signature
