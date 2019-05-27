@@ -306,7 +306,7 @@ class MatchingSearch {
             if(smalls != null) {
                 allMethodsMatch.addAll(smalls);
             }
-            if(validation.f(dex, eClass, allMethodsMatch)) {
+            if(!firstRound || validation.f(dex, eClass, allMethodsMatch)) {
                 // would ignore small methods
                 validFiles.add(entry.getKey());
             }

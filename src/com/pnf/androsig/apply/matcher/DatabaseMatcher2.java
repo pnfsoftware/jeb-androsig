@@ -277,17 +277,19 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 apkCallerLists, firstRound, unique);
         String originalSignature = eClass.getSignature(true);
         int innerLevel = DexUtilLocal.getInnerClassLevel(originalSignature);
+        boolean parentClassFound = false;
         if(DexUtilLocal.isInnerClass(originalSignature)) {
             IDexClass parentClass = DexUtilLocal.getParentClass(dex, originalSignature);
             String name = parentClass == null ? null: matchedClasses.get(parentClass.getIndex());
             if(name != null) {
+                parentClassFound = true;
                 // parent class mapping found: what are the inner class defined for?
                 DatabaseReferenceFile file = fileMatches.getFileFromClass(parentClass);
                 if(file != null) {
                     String innerClass = name.substring(0, name.length() - 1) + "$";
                     List<MethodSignature> compatibleSignatures = ref.getSignaturesForClassname(file, innerClass, false);
 
-                    // is there only one class that can match?
+                    // is there only one class that can match? TODO version filter?
                     List<MethodSignature> candidates = MatchingSearch.mergeSignaturesPerClass(compatibleSignatures);
                     Set<String> versions = FileMatches.getVersions(parentClass, matchedSigMethods);
                     candidates = filterVersions(candidates, versions);
@@ -407,8 +409,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             }
         }
         if(bestCandidate.oneMatch) {
-            if(DexUtilLocal.isInnerClass(originalSignature)) {
-                // TODO validate some methods from parent here
+            if(DexUtilLocal.isInnerClass(originalSignature) && !parentClassFound) {
                 return null;
             }
             // seriously check matching class: may be a false positive
@@ -450,6 +451,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                         continue;
                     }
                 }
+                List<MethodSignature> sigs = null;
                 for(IDexMethod eMethod: methods) {
                     MethodSignature strArray = cand.classPathMethod.get(eMethod.getIndex());
                     if(strArray != null) {
@@ -459,6 +461,16 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                             eMethod, true);
                     if(strArray != null) {
                         cand.classPathMethod.put(eMethod.getIndex(), strArray);
+                    }
+                    else if(!firstPass && !cand.oneMatch) {
+                        if(sigs == null) {
+                            // lazy init
+                            sigs = ref.getSignaturesForClassname(cand.file, cand.className, true);
+                        }
+                        strArray = fileCandidates.findMethodName(sigs, cand.className, new ArrayList<>(), eMethod);
+                        if(strArray != null && strArray.getMname() != null && strArray.getPrototype() != null) {
+                            cand.classPathMethod.put(eMethod.getIndex(), strArray);
+                        }
                     }
                 }
             }
@@ -639,6 +651,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         double totalInstrus = 0;
         double matchedInstrus = 0;
 
+        List<? extends IDexMethod> methods = eClass.getMethods();
         Double c = instruCount.get(eClass.getIndex());
         if(c != null) {
             totalInstrus = c;
@@ -649,16 +662,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             }
         }
         else {
-            List<? extends IDexMethod> methods = eClass.getMethods();
             if(methods == null || methods.size() == 0) {
                 return false;
-            }
-            if(methods.size() == 1) {
-                // possible false positive: same constructor/super constructor only
-                String name = methods.get(0).getName(true);
-                if(name.equals("<init>") || name.equals("<clinit>")) {
-                    return matchedInstrus > 20; // artificial metrics
-                }
             }
             for(IDexMethod m: methods) {
                 if(!m.isInternal()) {
@@ -682,6 +687,13 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             instruCount.put(eClass.getIndex(), totalInstrus);
         }
 
+        if(methods.size() == 1 && !DexUtilLocal.isInnerClass(eClass.getSignature(true))) {
+            // possible false positive: same constructor/super constructor only
+            String name = methods.get(0).getName(true);
+            if(name.equals("<init>") || name.equals("<clinit>")) {
+                return matchedInstrus > 20; // artificial metrics
+            }
+        }
         if(matchedInstrus / totalInstrus <= params.matchedInstusPercentageBar) {
             return false;
         }
