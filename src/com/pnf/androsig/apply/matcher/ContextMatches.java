@@ -147,7 +147,7 @@ public class ContextMatches {
         return Boolean.TRUE;
     }
 
-    private static List<String> parseSignatureParameters(String parameters) {
+    static List<String> parseSignatureParameters(String parameters) {
         List<String> params = new ArrayList<>();
         int i = 0;
         while(i < parameters.length()) {

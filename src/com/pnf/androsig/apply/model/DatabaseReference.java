@@ -11,7 +11,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import com.pnf.androsig.apply.matcher.DatabaseReferenceFile;
 import com.pnfsoftware.jeb.util.logging.GlobalLog;
 import com.pnfsoftware.jeb.util.logging.ILogger;
 
@@ -109,6 +111,25 @@ public class DatabaseReference {
     public List<MethodSignature> getSignaturesForClassname(String file, String className, boolean exactName) {
         ISignatureFile sigFile = signatureFileFactory.getSignatureFile(file);
         return sigFile.getSignaturesForClassname(className, exactName);
+    }
+
+    public List<MethodSignature> getSignaturesForClassname(DatabaseReferenceFile file, String className,
+            boolean exactName) {
+        List<MethodSignature> sigs = getSignaturesForClassname(file.file, className, exactName);
+        Set<String> versions = file.versions.keySet();
+        return sigs.stream().filter(m -> intersect(versions, m.getVersions())).collect(Collectors.toList());
+    }
+
+    private boolean intersect(Set<String> versions, String[] versions2) {
+        if(versions2 == null || versions2.length == 0 || versions == null || versions.size() == 0) {
+            return true;
+        }
+        for(String v: versions2) {
+            if(versions.contains(v)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @SuppressWarnings("resource")

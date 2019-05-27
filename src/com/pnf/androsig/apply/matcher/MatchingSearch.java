@@ -42,8 +42,9 @@ class MatchingSearch {
         public boolean oneMatch;
 
         public void validateVersions() {
-            Map<String, Integer> versionOccurences = FileMatches.mergeVersions(null, classPathMethod.values());
-            List<List<String>> preferedOrderList = fileMatches.orderVersions(versionOccurences);
+            DatabaseReferenceFile tmp = new DatabaseReferenceFile(file, null);
+            FileMatches.mergeVersions(tmp, classPathMethod.values());
+            List<List<String>> preferedOrderList = fileMatches.orderVersions(tmp.versions);
             versions.addAll(preferedOrderList.get(0));
             // FIXME not only the preferred order: 2 preferred orders must be equally present
             List<Integer> illegalMethods = new ArrayList<>();
@@ -165,7 +166,7 @@ class MatchingSearch {
         // meaning: if all methods really match (without looking at prototypes)
         if(!firstRound && !firstPass) {
             // restrict list of available files
-            validFiles = CollectionUtil.intersection(validFiles, new ArrayList<>(fileMatches.usedSigFiles.keySet()));
+            validFiles = CollectionUtil.intersection(validFiles, new ArrayList<>(fileMatches.getSignatureFileUsed()));
         }
         if(validFiles.isEmpty() && !firstRound) {
             return false;
@@ -388,27 +389,27 @@ class MatchingSearch {
         MethodSignature strArray = null;
         List<MethodSignature> sigs = ref.getSignatureLines(file, mhash_tight, true);
         if(sigs != null) {
-            strArray = findMethodName(dex, sigs, prototypes, shorty, classPath, alreadyProcessedMethods, eMethod);
+            strArray = findMethodName(sigs, prototypes, shorty, classPath, alreadyProcessedMethods, eMethod);
         }
         if(strArray == null || (!allowEmptyMName && strArray.getMname().isEmpty())) {
             String mhash_loose = dexHashCodeList.getLooseHashcode(eMethod);
             sigs = ref.getSignatureLines(file, mhash_loose, false);
             if(sigs != null) {
-                strArray = findMethodName(dex, sigs, prototypes, shorty, classPath, alreadyProcessedMethods, eMethod);
+                strArray = findMethodName(sigs, prototypes, shorty, classPath, alreadyProcessedMethods, eMethod);
             }
         }
         return strArray;
     }
 
-    MethodSignature findMethodName(IDexUnit dex, List<MethodSignature> sigs, String classPath,
+    MethodSignature findMethodName(List<MethodSignature> sigs, String classPath,
             Collection<MethodSignature> alreadyProcessedMethods, IDexMethod eMethod) {
         IDexPrototype proto = dex.getPrototypes().get(eMethod.getPrototypeIndex());
         String prototypes = proto.generate(true);
         String shorty = dex.getStrings().get(proto.getShortyIndex()).getValue();
-        return findMethodName(dex, sigs, prototypes, shorty, classPath, alreadyProcessedMethods, eMethod);
+        return findMethodName(sigs, prototypes, shorty, classPath, alreadyProcessedMethods, eMethod);
     }
 
-    MethodSignature findMethodName(IDexUnit dex, List<MethodSignature> sigs, String proto, String shorty,
+    MethodSignature findMethodName(List<MethodSignature> sigs, String proto, String shorty,
             String classPath, Collection<MethodSignature> alreadyProcessedMethods, IDexMethod eMethod) {
         MethodSignature sig = findMethodName(dex, sigs, proto, true, classPath, alreadyProcessedMethods, eMethod);
         if(sig != null) {
@@ -420,7 +421,7 @@ class MatchingSearch {
         return null;
     }
 
-    private MethodSignature findMethodName(IDexUnit dex, List<MethodSignature> sigs, String proto,
+    List<MethodSignature> findMethodNames(List<MethodSignature> sigs, String proto,
             boolean prototype, String classPath, Collection<MethodSignature> alreadyProcessedMethods,
             IDexMethod eMethod) {
         List<MethodSignature> results = new ArrayList<>();
@@ -441,6 +442,13 @@ class MatchingSearch {
             }
             results.add(strArray);
         }
+        return results;
+    }
+
+    private MethodSignature findMethodName(IDexUnit dex, List<MethodSignature> sigs, String proto, boolean prototype,
+            String classPath, Collection<MethodSignature> alreadyProcessedMethods, IDexMethod eMethod) {
+        List<MethodSignature> results = findMethodNames(sigs, proto, prototype, classPath, alreadyProcessedMethods,
+                eMethod);
         if(results.size() == 1) {
             return results.get(0);
         }
@@ -454,8 +462,8 @@ class MatchingSearch {
         return null;
     }
 
-    private boolean isCompatibleSignature(IDexMethod eMethod, String prototypes, boolean checkPrototypes, String shorty,
-            boolean checkShorty, MethodSignature strArray) {
+    private static boolean isCompatibleSignature(IDexMethod eMethod, String prototypes, boolean checkPrototypes,
+            String shorty, boolean checkShorty, MethodSignature strArray) {
         if(checkPrototypes && !strArray.getPrototype().equals(prototypes)) {
             return false;
         }
@@ -483,7 +491,7 @@ class MatchingSearch {
     private void filterList(IDexUnit dex, IDexMethod eMethod, List<MethodSignature> results) {
         // only on post processing
         // firstly, filter versions
-        String f = fileMatches.getFileFromClass(eMethod.getClassType().getImplementingClass());
+        DatabaseReferenceFile f = fileMatches.getFileFromClass(eMethod.getClassType().getImplementingClass());
         if(f == null) {
             return; // wait for post process to retrieve correct file
         }

@@ -40,30 +40,47 @@ public class FileMatches {
      */
     boolean stable = false;
 
-    private Map<Integer, String> matchedClassesFile = new HashMap<>();
+    private Map<Integer, DatabaseReferenceFile> matchedClassesFile = new HashMap<>();
 
     /** Used files -> list of versions match (with occurrences) */
-    Map<String, Map<String, Integer>> usedSigFiles = new HashMap<>();
+    private Map<String, DatabaseReferenceFile> usedSigFiles = new HashMap<>();
     /** Used files -> list of versions */
     private Map<String, List<Set<String>>> usedSigFilesReduced = new HashMap<>();
+
+    public Set<String> getSignatureFileUsed() {
+        return usedSigFiles.keySet();
+    }
+
+    public Set<Entry<String, DatabaseReferenceFile>> getSignatureFileEntrySet() {
+        return usedSigFiles.entrySet();
+    }
+
+    public boolean isSignatureFileUsed(String f) {
+        return usedSigFiles.containsKey(f);
+    }
 
     private boolean useReducedList() {
         return stable;
     }
 
-    public String getFileFromClass(IDexClass dexClass) {
+    public DatabaseReferenceFile getFileFromClass(IDexClass dexClass) {
         return getFileFromClassId(dexClass.getIndex());
     }
 
-    public String getFileFromClassId(int index) {
+    public DatabaseReferenceFile getFileFromClassId(int index) {
         return matchedClassesFile.get(index);
     }
 
     public void addMatchedClassFiles(IDexClass dexClass, String file) {
-        matchedClassesFile.put(dexClass.getIndex(), file);
+        DatabaseReferenceFile refFile = usedSigFiles.get(file);
+        if(refFile == null) {
+            refFile = new DatabaseReferenceFile(file, null);
+            usedSigFiles.put(file, refFile);
+        }
+        matchedClassesFile.put(dexClass.getIndex(), refFile);
     }
 
-    public String removeClassFiles(IDexClass dexClass) {
+    public DatabaseReferenceFile removeClassFiles(IDexClass dexClass) {
         return matchedClassesFile.remove(dexClass.getIndex());
     }
 
@@ -75,29 +92,32 @@ public class FileMatches {
             }
             usedSigFilesReduced.put(file, res);
         }
-        usedSigFiles.put(file, mergeVersions(usedSigFiles.get(file), values));
+        DatabaseReferenceFile refFile = usedSigFiles.get(file);
+        if(refFile == null) {
+            refFile = new DatabaseReferenceFile(file, null);
+            usedSigFiles.put(file, refFile);
+        }
+        mergeVersions(refFile, values);
         return true;
     }
 
-    static Map<String, Integer> mergeVersions(Map<String, Integer> versionOccurences,
-            Collection<MethodSignature> values) {
-        if(versionOccurences == null) {
-            versionOccurences = new HashMap<>();
+    static void mergeVersions(DatabaseReferenceFile refFile, Collection<MethodSignature> values) {
+        if(refFile.versions == null) {
+            refFile.versions = new HashMap<>();
         }
         for(MethodSignature value: values) {
             // put first as reference
             String[] versions = MethodSignature.getVersions(value);
             if(versions == null) {
                 // sig1 or no version specified
-                increment(versionOccurences, "all");
+                increment(refFile.versions, "all");
             }
             else {
                 for(String v: versions) {
-                    increment(versionOccurences, v);
+                    increment(refFile.versions, v);
                 }
             }
         }
-        return versionOccurences;
     }
 
     private static List<Set<String>> mergeVersions(List<Set<String>> reducedVersions,
@@ -176,11 +196,17 @@ public class FileMatches {
     }
 
     public List<List<String>> getOrderedVersions(String f) {
-        Map<String, Integer> versions = usedSigFiles.get(f);
-        if(versions == null) {
+        return getOrderedVersions(usedSigFiles.get(f));
+    }
+
+    public List<List<String>> getOrderedVersions(DatabaseReferenceFile refFile) {
+        if(refFile == null) {
             return new ArrayList<>();
         }
-        List<List<String>> res = orderVersions(versions);
+        if(refFile.versions == null) {
+            return new ArrayList<>();
+        }
+        List<List<String>> res = orderVersions(refFile.versions);
         if(hasNoVersion(res)) {
             return new ArrayList<>();
         }
@@ -189,10 +215,11 @@ public class FileMatches {
 
 
     String getMatchedClassFile(IDexClass cl, String className, DatabaseReference ref) {
-        String f = getFileFromClass(cl);
-        if(f != null) {
-            return f;
+        DatabaseReferenceFile refFile = getFileFromClass(cl);
+        if(refFile != null) {
+            return refFile.file;
         }
+        String f = null;
         List<String> fs = ref.getFilesContainingClass(className);
         if(fs == null || fs.isEmpty()) {
             return null;
@@ -248,7 +275,8 @@ public class FileMatches {
 
     private int getLevel(DatabaseReference ref, String f, String className) {
         List<MethodSignature> compatibleSignatures = ref.getSignaturesForClassname(f, className, true);
-        Map<String, Integer> versions = usedSigFiles.get(f);
+        DatabaseReferenceFile refFile = usedSigFiles.get(f);
+        Map<String, Integer> versions = refFile.versions;
         List<List<String>> preferedOrderList = orderVersions(versions);
         int level = 0;
         if(hasNoVersion(preferedOrderList)) {

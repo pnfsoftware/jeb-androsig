@@ -256,8 +256,10 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             // Get all candidates
             InnerMatch innerMatch = getClass(unit, eClass, dexHashCodeList, firstRound, firstPass);
             if(innerMatch != null) {
-                storeFinalCandidate(unit, eClass, innerMatch, firstRound);
-                found = true;
+                if(storeFinalCandidate(unit, eClass, innerMatch, firstRound)) {
+                    fileMatches.addMatchedClassFiles(eClass, innerMatch.file);
+                    found = true;
+                }
             }
         }
         return found;
@@ -280,7 +282,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             String name = parentClass == null ? null: matchedClasses.get(parentClass.getIndex());
             if(name != null) {
                 // parent class mapping found: what are the inner class defined for?
-                String file = fileMatches.getFileFromClass(parentClass);
+                DatabaseReferenceFile file = fileMatches.getFileFromClass(parentClass);
                 if(file != null) {
                     String innerClass = name.substring(0, name.length() - 1) + "$";
                     List<MethodSignature> compatibleSignatures = ref.getSignaturesForClassname(file, innerClass, false);
@@ -296,7 +298,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                         return null;
                     }
 
-                    fileCandidates.processInnerClass(file, matchedMethods, methods, innerClass, innerLevel,
+                    fileCandidates.processInnerClass(file.file, matchedMethods, methods, innerClass, innerLevel,
                             compatibleSignatures);
                 }
                 else {
@@ -330,7 +332,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
 
         filterVersions(fileCandidates);
 
-        findSmallMethods(fileCandidates, originalSignature, methods);
+        findSmallMethods(fileCandidates, originalSignature, methods, unique);
 
         List<InnerMatch> bestCandidates = filterMaxMethodsMatch(fileCandidates);
 
@@ -421,7 +423,6 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 return null;
             }
         }
-        fileMatches.addMatchedClassFiles(eClass, bestCandidate.file);
         return bestCandidate;
     }
 
@@ -439,13 +440,13 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
     }
 
     private void findSmallMethods(MatchingSearch fileCandidates, String originalSignature,
-            List<? extends IDexMethod> methods) {
+            List<? extends IDexMethod> methods, boolean firstPass) {
         // Find small methods
         for(Entry<String, Map<String, InnerMatch>> entry: fileCandidates.entrySet()) {
             for(InnerMatch cand: entry.getValue().values()) {
                 if(cand.oneMatch || DexUtilLocal.isInnerClass(originalSignature)) {
                     // do not artificially grow easy matches, unless file is in use
-                    if(!this.fileMatches.usedSigFiles.containsKey(cand.file)) {
+                    if(!this.fileMatches.isSignatureFileUsed(cand.file)) {
                         continue;
                     }
                 }
@@ -514,14 +515,14 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         return higherOccurence;
     }
 
-    private void storeFinalCandidate(IDexUnit unit, IDexClass eClass, InnerMatch innerMatch, boolean firstRound) {
+    private boolean storeFinalCandidate(IDexUnit unit, IDexClass eClass, InnerMatch innerMatch, boolean firstRound) {
         if(innerMatch.className.contains("$")) {
             // allow renaming only when parent classes are fine, because inner class tend to be the same in some projects
             String originalSignature = eClass.getSignature(true);
             if(!originalSignature.contains("$")) {
                 // inner class match a non inner class => dangerous
                 fileMatches.removeClassFiles(eClass);
-                return;
+                return false;
             }
             String parentSignature = originalSignature.substring(0, originalSignature.lastIndexOf("$")) + ";";
             String parentMatchSignature = innerMatch.className.substring(0, innerMatch.className.lastIndexOf("$"))
@@ -530,7 +531,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 // expect parent match: otherwise, wait for parent match
                 if(firstRound) {
                     fileMatches.removeClassFiles(eClass);
-                    return;
+                    return false;
                 }
                 else {
                     String oldClass = eClass.getSignature(true);
@@ -552,13 +553,13 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                             // parent class has already a match: must be the same
                             if(!oldParentMatch.equals(newParentClass)) {
                                 fileMatches.removeClassFiles(eClass);
-                                return;
+                                return false;
                             }
                         }
                         else if(newParentClassObj != null && matchedClasses.get(newParentClassObj.getIndex()) != null) {
                             // destination class is being/has been renamed but does not match the original class
                             fileMatches.removeClassFiles(eClass);
-                            return;
+                            return false;
                         }
                     }
                     while(newClass.contains("$") && oldClass.contains("$")) {
@@ -576,7 +577,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         // Store methods
         ArrayList<Integer> temp1 = new ArrayList<>();
         if(innerMatch.classPathMethod == null || innerMatch.classPathMethod.size() == 0) {
-            return;
+            return false;
         }
         for(Entry<Integer, MethodSignature> methodName_method: innerMatch.classPathMethod.entrySet()) {
             temp1.add(methodName_method.getKey());
@@ -591,7 +592,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             if(f(unit, eClass, temp1)) {
                 boolean res = fileMatches.addVersions(innerMatch.file, innerMatch.classPathMethod.values());
                 if(!res) {
-                    return;
+                    return false;
                 }
                 logger.i("Found match class: %s from file %s", innerMatch.className, innerMatch.file);
                 matchedClasses.put(eClass.getIndex(), innerMatch.className);
@@ -619,6 +620,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                     contextMatches.saveParamMatching(prototypes, strArray.getPrototype(),
                             innerMatch.className, strArray.getMname());
                 }
+
+                return true;
             }
             else {
                 logger.debug("Can not validate candidate for %s: user threshold not reached", innerMatch.className);
@@ -628,6 +631,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 }
             }
         }
+        return false;
     }
 
     @Override
@@ -812,7 +816,11 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 // class not loaded in dex (maybe in another dex)
                 continue;
             }
-            String f = fileMatches.getFileFromClass(eClass);
+            DatabaseReferenceFile refFile = fileMatches.getFileFromClass(eClass);
+            String f = null;
+            if(refFile != null) {
+                f = refFile.file;
+            }
             if(f == null) {
                 // update matchedClassesFile
                 f = fileMatches.getMatchedClassFile(eClass, entry.getValue(), ref);
@@ -889,8 +897,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                             List<MethodSignature> sigs = search.getSignaturesForClassname(file, className, true,
                                     eMethod);
                             if(!sigs.isEmpty()) {
-                                strArray = search.findMethodName(dex, sigs, prototypes, shorty, className,
-                                        alreadyMatches, eMethod);
+                                strArray = search.findMethodName(sigs, prototypes, shorty, className, alreadyMatches,
+                                        eMethod);
                             }
                             if(strArray != null) {
                                 String newMethodName = strArray.getMname();
@@ -987,7 +995,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 // attempt to retrieve only used resources/filter
                 List<String> usedFiles = new ArrayList<>();
                 for(String file: files) {
-                    if(fileMatches.usedSigFiles.containsKey(file)) {
+                    if(fileMatches.isSignatureFileUsed(file)) {
                         usedFiles.add(file);
                     }
                 }
@@ -1042,7 +1050,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
     public int getAllSignatureCount() {
         int sigCount = 0;
         for(Entry<String, ISignatureFile> sig: ref.getLoadedSignatureFiles().entrySet()) {
-            if(fileMatches.usedSigFiles.containsKey(sig.getKey())) {
+            if(fileMatches.isSignatureFileUsed(sig.getKey())) {
                 sigCount += sig.getValue().getAllSignatureCount();
             }
         }
@@ -1051,17 +1059,17 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
 
     @Override
     public int getAllUsedSignatureFileCount() {
-        return fileMatches.usedSigFiles.size();
+        return fileMatches.getSignatureFileUsed().size();
     }
 
     @Override
     public Map<String, LibraryInfo> getAllLibraryInfos() {
         Map<String, LibraryInfo> libs = new HashMap<>();
         for(Entry<Integer, String> entry: matchedClasses.entrySet()) {
-            String file = fileMatches.getFileFromClassId(entry.getKey());
+            DatabaseReferenceFile file = fileMatches.getFileFromClassId(entry.getKey());
             if(file == null) {
-                for(Entry<String, Map<String, Integer>> used: fileMatches.usedSigFiles.entrySet()) {
-                    LibraryInfo res = ref.getAllLibraryInfos(used.getKey()).get(entry.getValue());
+                for(String used: fileMatches.getSignatureFileUsed()) {
+                    LibraryInfo res = ref.getAllLibraryInfos(used).get(entry.getValue());
                     if(res != null) {
                         libs.put(entry.getValue(), res);
                         break;
@@ -1069,7 +1077,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 }
             }
             else {
-                LibraryInfo res = ref.getAllLibraryInfos(file).get(entry.getValue());
+                LibraryInfo res = ref.getAllLibraryInfos(file.file).get(entry.getValue());
                 libs.put(entry.getValue(), res);
             }
         }
