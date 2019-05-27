@@ -117,8 +117,11 @@ public class DatabaseReference {
     public List<MethodSignature> getSignaturesForClassname(DatabaseReferenceFile file, String className,
             boolean exactName) {
         List<MethodSignature> sigs = getSignaturesForClassname(file.file, className, exactName);
-        Set<String> versions = file.versions.keySet();
-        return sigs.stream().filter(m -> intersect(versions, m.getVersions())).collect(Collectors.toList());
+        if(file.versions != null) {
+            Set<String> versions = file.versions.keySet();
+            return sigs.stream().filter(m -> intersect(versions, m.getVersions())).collect(Collectors.toList());
+        }
+        return sigs;
     }
 
     private boolean intersect(Set<String> versions, String[] versions2) {

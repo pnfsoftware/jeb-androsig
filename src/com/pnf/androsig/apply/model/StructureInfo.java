@@ -28,10 +28,10 @@ import java.util.Set;
 
 import com.pnf.androsig.apply.matcher.DatabaseMatcherFactory;
 import com.pnf.androsig.apply.matcher.IDatabaseMatcher;
+import com.pnf.androsig.apply.util.DexUtilLocal;
 import com.pnf.androsig.apply.util.MetadataGroupHandler;
 import com.pnf.androsig.apply.util.StructureHandler;
 import com.pnfsoftware.jeb.core.output.ItemClassIdentifiers;
-import com.pnfsoftware.jeb.core.units.code.ICodeItem;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
@@ -183,7 +183,7 @@ public class StructureInfo {
                 if(innerClassStartName >= 0) {
                     className = className.substring(innerClassStartName + 1);
                 }
-                if(innerClassStartName >= 0 && (eClass.getGenericFlags() & ICodeItem.FLAG_ANONYMOUS) != 0) {
+                if(innerClassStartName >= 0 && DexUtilLocal.isAnonymous(eClass)) {
                     // anonymous class: do not rename, otherwise we will have strange behavior
                     // since anonymous class _keeps_ its internal index in addition to its name
                     // (will maybe be fixed in future versions)

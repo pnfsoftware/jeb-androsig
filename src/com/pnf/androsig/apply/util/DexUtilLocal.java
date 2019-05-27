@@ -5,6 +5,7 @@
  */
 package com.pnf.androsig.apply.util;
 
+import com.pnfsoftware.jeb.core.units.code.ICodeItem;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
 
@@ -34,6 +35,20 @@ public class DexUtilLocal {
             }
         }
         return level;
+    }
+
+    public static boolean isAnonymous(IDexClass eClass) {
+        return (eClass.getGenericFlags() & ICodeItem.FLAG_ANONYMOUS) != 0;
+    }
+
+    public static boolean isAnonymous(String signature) {
+        int from = signature.lastIndexOf("$") + 1;
+        for(int i = from; i < signature.length() - 1; i++) {
+            if(!Character.isDigit(signature.charAt(i))) {
+                return false; // normally, first char must not be digit for java Class but check all
+            }
+        }
+        return true;
     }
 
 }

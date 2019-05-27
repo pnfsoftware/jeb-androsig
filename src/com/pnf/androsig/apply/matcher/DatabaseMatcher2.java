@@ -286,6 +286,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 // parent class mapping found: what are the inner class defined for?
                 DatabaseReferenceFile file = fileMatches.getFileFromClass(parentClass);
                 if(file != null) {
+                    // Retrieve all inner class belonging to parent
                     String innerClass = name.substring(0, name.length() - 1) + "$";
                     List<MethodSignature> compatibleSignatures = ref.getSignaturesForClassname(file, innerClass, false);
 
@@ -293,15 +294,23 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                     List<MethodSignature> candidates = MatchingSearch.mergeSignaturesPerClass(compatibleSignatures);
                     Set<String> versions = FileMatches.getVersions(parentClass, matchedSigMethods);
                     candidates = filterVersions(candidates, versions);
-                    candidates = candidates.stream().filter(inner -> isInnerClassCandidate(dex, inner))
+                    candidates = candidates.stream()
+                            .filter(inner -> isInnerClassCandidate(dex, inner, eClass, innerLevel))
                             .collect(Collectors.toList());
                     if(candidates.size() == 1) {
+                        // bypass f validation
                         contextMatches.saveClassMatch(originalSignature, candidates.get(0).getCname(), name);
                         return null;
                     }
 
+
+                    compatibleSignatures = compatibleSignatures.stream()
+                            .filter(inner -> isInnerClassCandidate(dex, inner, eClass, innerLevel))
+                            .collect(Collectors.toList());
+                    compatibleSignatures = filterVersions(compatibleSignatures, versions);
                     fileCandidates.processInnerClass(file.file, matchedMethods, methods, innerClass, innerLevel,
                             compatibleSignatures);
+                    ignoredClasses.remove(eClass.getIndex());
                 }
                 else {
                     //System.out.println("No reference file for " + parentSignature);
@@ -477,10 +486,19 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         }
     }
 
-    private boolean isInnerClassCandidate(IDexUnit dex, MethodSignature inner) {
+    private boolean isInnerClassCandidate(IDexUnit dex, MethodSignature inner, IDexClass eClass, int innerLevel) {
         IDexClass innerCl = dex.getClass(inner.getCname());
         // remove classes that already matched
-        return innerCl == null || !matchedClasses.containsKey(innerCl.getIndex());
+        if(innerCl != null && matchedClasses.containsKey(innerCl.getIndex())) {
+            return false;
+        }
+        if(DexUtilLocal.isAnonymous(eClass) != DexUtilLocal.isAnonymous(inner.getCname())) {
+            return false;
+        }
+        if(innerLevel != DexUtilLocal.getInnerClassLevel(inner.getCname())) {
+            return false;
+        }
+        return true;
     }
 
     private List<MethodSignature> filterVersions(List<MethodSignature> candidates, Set<String> versions) {
