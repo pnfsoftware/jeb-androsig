@@ -164,7 +164,7 @@ class MatchingSearch {
             List<? extends IDexMethod> methods, int innerLevel, List<String> validFiles) {
         // quick win: to avoid loading all files, consider first if valid in best case
         // meaning: if all methods really match (without looking at prototypes)
-        if(!firstRound && !firstPass) {
+        if(!firstRound && !firstPass && validFiles.size() > 1) {
             // restrict list of available files
             validFiles = CollectionUtil.intersection(validFiles, new ArrayList<>(fileMatches.getSignatureFileUsed()));
         }
