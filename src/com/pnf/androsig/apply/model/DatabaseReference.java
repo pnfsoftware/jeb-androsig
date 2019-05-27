@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -151,4 +152,15 @@ public class DatabaseReference {
         ISignatureFile sigFile = signatureFileFactory.getSignatureFile(file);
         return sigFile.getParent(className);
     }
+
+    public List<String> getClassList(String f) {
+        List<String> classes = new ArrayList<>();
+        for(Entry<String, Set<String>> class_: allClasses.entrySet()) {
+            if(class_.getValue().contains(f)) {
+                classes.add(class_.getKey());
+            }
+        }
+        return classes;
+    }
+
 }
