@@ -426,10 +426,10 @@ class MatchingSearch {
             IDexMethod eMethod) {
         List<MethodSignature> results = new ArrayList<>();
         proto: for(MethodSignature strArray: sigs) {
-            if(!isCompatibleSignature(eMethod, proto, prototype, proto, !prototype, strArray)) {
+            if(!strArray.getCname().equals(classPath)) {
                 continue;
             }
-            if(!strArray.getCname().equals(classPath)) {
+            if(!isCompatibleSignature(eMethod, proto, prototype, proto, !prototype, strArray)) {
                 continue;
             }
             for(MethodSignature alreadyProcessed: alreadyProcessedMethods) {
@@ -472,20 +472,11 @@ class MatchingSearch {
         }
         // init/clinit can not be changed, but is a good indicator for matching
         String methodName = eMethod.getName(true);
-        if(methodName.equals("<init>")) {
-            if(!strArray.getMname().equals("<init>")) {
-                return false;
-            }
+        if(checkPrototypes) {
+            return DexUtilLocal.isMethodCompatibleWithSignatures(methodName, prototypes, strArray.getMname(),
+                    strArray.getPrototype());
         }
-        else if(methodName.equals("<clinit>")) {
-            if(!strArray.getMname().equals("<clinit>")) {
-                return false;
-            }
-        }
-        else if(strArray.getMname().equals("<init>") || strArray.getMname().equals("<clinit>")) {
-            return false;
-        }
-        return true;
+        return DexUtilLocal.isMethodCompatible(methodName, strArray.getMname());
     }
 
     private void filterList(IDexUnit dex, IDexMethod eMethod, List<MethodSignature> results) {

@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
+import com.pnf.androsig.apply.util.DexUtilLocal;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
@@ -192,7 +193,8 @@ public class ContextMatches {
         List<String> expectedParams = parseSignatureParameters(expectedTokens[2]);
         List<String> currentParams = parseSignatureParameters(currentTokens[2]);
         if(!areParamsSignatureCompatibles(unit, expectedParams, currentParams)
-                || !isMethodCompatible(unit, expectedTokens[1], currentTokens[1])
+                || !DexUtilLocal.isMethodCompatibleWithParams(expectedTokens[1], expectedTokens[2], currentTokens[1],
+                        currentTokens[2])
                 || !isSignatureCompatible(unit, expectedTokens[0], currentTokens[0])
                 || !isSignatureCompatible(unit, expectedTokens[3], currentTokens[3])) {
             return;
@@ -252,7 +254,8 @@ public class ContextMatches {
                 List<String> currentParams = currentsParams.get(current.getKey());
                 String[] currentTokens = currentsSplits.get(current.getKey());
                 if(!areParamsSignatureCompatibles(unit, expectedParams, currentParams)
-                        || !isMethodCompatible(unit, expectedTokens[1], currentTokens[1])
+                        || !DexUtilLocal.isMethodCompatibleWithParams(expectedTokens[1], expectedTokens[2],
+                                currentTokens[1], currentTokens[2])
                         || !isSignatureCompatible(unit, expectedTokens[0], currentTokens[0])
                         || !isSignatureCompatible(unit, expectedTokens[3], currentTokens[3])) {
                     continue;
@@ -500,13 +503,6 @@ public class ContextMatches {
         }
     }
 
-    private boolean isMethodCompatible(IDexUnit unit, String expected, String current) {
-        if("<init>".equals(expected) != "<init>".equals(current)
-                || "<clinit>".equals(expected) != "<clinit>".equals(current)) {
-            return false;
-        }
-        return true;
-    }
     public Set<Entry<String, String>> entrySet() {
         return contextMatches.entrySet();
     }
