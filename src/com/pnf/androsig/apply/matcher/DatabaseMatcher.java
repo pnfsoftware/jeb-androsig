@@ -35,6 +35,7 @@ import com.pnfsoftware.jeb.core.units.code.android.dex.IDexPrototype;
  * @author Ruoxiao Wang, Cedric Lucas
  *
  */
+@Deprecated
 class DatabaseMatcher implements IDatabaseMatcher {
 
     private DatabaseMatcherParameters params;

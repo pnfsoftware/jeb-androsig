@@ -43,6 +43,7 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
  * @author Ruoxiao Wang
  *
  */
+@Deprecated
 class Signature implements ISignatureMetrics {
     private final ILogger logger = GlobalLog.getLogger(Signature.class);
 

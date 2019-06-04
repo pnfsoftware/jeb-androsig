@@ -32,7 +32,7 @@ import com.pnfsoftware.jeb.util.format.Strings;
  * @author Cedric Lucas
  *
  */
-class MatchingSearch {
+public class MatchingSearch {
     class InnerMatch {
         String className;
         Map<Integer, MethodSignature> classPathMethod = new HashMap<>();
@@ -43,7 +43,7 @@ class MatchingSearch {
 
         public void validateVersions() {
             DatabaseReferenceFile tmp = new DatabaseReferenceFile(file, null);
-            FileMatches.mergeVersions(tmp, classPathMethod.values());
+            tmp.mergeVersions(classPathMethod.values());
             List<List<String>> preferedOrderList = fileMatches.orderVersions(tmp.versions);
             versions.addAll(preferedOrderList.get(0));
             // FIXME not only the preferred order: 2 preferred orders must be equally present
@@ -75,21 +75,21 @@ class MatchingSearch {
     private DatabaseReference ref;
     private DatabaseMatcherParameters params;
     private FileMatches fileMatches;
-    private Map<Integer, Map<Integer, Integer>> apkCallerLists;
+    private List<IAndrosigModule> modules;
     private boolean firstRound;
     private boolean firstPass;
 
     private Map<String, Map<String, InnerMatch>> fileCandidates = new HashMap<>(); // file -> (classname->count)
 
     public MatchingSearch(IDexUnit dex, DexHashcodeList dexHashCodeList, DatabaseReference ref,
-            DatabaseMatcherParameters params, FileMatches fileMatches,
-            Map<Integer, Map<Integer, Integer>> apkCallerLists, boolean firstRound, boolean firstPass) {
+            DatabaseMatcherParameters params, FileMatches fileMatches, List<IAndrosigModule> modules,
+            boolean firstRound, boolean firstPass) {
         this.dex = dex;
         this.dexHashCodeList = dexHashCodeList;
         this.ref = ref;
         this.params = params;
         this.fileMatches = fileMatches;
-        this.apkCallerLists = apkCallerLists;
+        this.modules = modules;
         this.firstRound = firstRound;
         this.firstPass = firstPass;
     }
@@ -150,7 +150,7 @@ class MatchingSearch {
                 classes = new HashMap<>();
                 fileCandidates.put(file, classes);
             }
-            saveTemporaryCandidate(dex, eMethod, sigLine, firstRound, classes, file, innerLevel);
+            saveTemporaryCandidate(eMethod, sigLine, firstRound, classes, file, innerLevel);
         }
     }
 
@@ -218,7 +218,7 @@ class MatchingSearch {
                         classes = new HashMap<>();
                         fileCandidates.put(file, classes);
                     }
-                    saveTemporaryCandidate(dex, eMethod, sigLine, firstRound, classes, file, innerLevel);
+                    saveTemporaryCandidate(eMethod, sigLine, firstRound, classes, file, innerLevel);
                 }
             }
             else if(!firstRound) {
@@ -247,7 +247,7 @@ class MatchingSearch {
                             classes = new HashMap<>();
                             fileCandidates.put(file, classes);
                         }
-                        saveTemporaryCandidate(dex, eMethod, sigLine, firstRound, classes, file, innerLevel);
+                        saveTemporaryCandidate(eMethod, sigLine, firstRound, classes, file, innerLevel);
                     }
                 }
             }
@@ -314,7 +314,7 @@ class MatchingSearch {
         return validFiles;
     }
 
-    private void saveTemporaryCandidate(IDexUnit dex, IDexMethod eMethod, List<MethodSignature> elts,
+    private void saveTemporaryCandidate(IDexMethod eMethod, List<MethodSignature> elts,
             boolean firstRound, Map<String, InnerMatch> classes, String file, int innerLevel) {
         IDexPrototype proto = dex.getPrototypes().get(eMethod.getPrototypeIndex());
         String shorty = proto.getShorty();
@@ -362,12 +362,12 @@ class MatchingSearch {
         String prototypes = proto.generate(true);
         List<MethodSignature> sigs = getSignaturesForClassname(file, className, true, eMethod);
         sigs = sigs.stream().filter(s -> s.getMname().equals(methodName)).collect(Collectors.toList());
-        MethodSignature ms = findMethodName(dex, sigs, prototypes, true, className, new ArrayList<>(), eMethod);
+        MethodSignature ms = findMethodName(sigs, prototypes, true, className, new ArrayList<>(), eMethod);
         if(ms != null) {
             return ms;
         }
         String shorty = dex.getStrings().get(proto.getShortyIndex()).getValue();
-        return findMethodName(dex, sigs, shorty, false, className, new ArrayList<>(), eMethod);
+        return findMethodName(sigs, shorty, false, className, new ArrayList<>(), eMethod);
     }
 
     public MethodSignature findMethodMatch(String file, String classPath,
@@ -401,7 +401,7 @@ class MatchingSearch {
         return strArray;
     }
 
-    MethodSignature findMethodName(List<MethodSignature> sigs, String classPath,
+    public MethodSignature findMethodName(List<MethodSignature> sigs, String classPath,
             Collection<MethodSignature> alreadyProcessedMethods, IDexMethod eMethod) {
         IDexPrototype proto = dex.getPrototypes().get(eMethod.getPrototypeIndex());
         String prototypes = proto.generate(true);
@@ -411,12 +411,12 @@ class MatchingSearch {
 
     MethodSignature findMethodName(List<MethodSignature> sigs, String proto, String shorty,
             String classPath, Collection<MethodSignature> alreadyProcessedMethods, IDexMethod eMethod) {
-        MethodSignature sig = findMethodName(dex, sigs, proto, true, classPath, alreadyProcessedMethods, eMethod);
+        MethodSignature sig = findMethodName(sigs, proto, true, classPath, alreadyProcessedMethods, eMethod);
         if(sig != null) {
             return sig;
         }
         if(!firstRound && !firstPass) {
-            return findMethodName(dex, sigs, shorty, false, classPath, alreadyProcessedMethods, eMethod);
+            return findMethodName(sigs, shorty, false, classPath, alreadyProcessedMethods, eMethod);
         }
         return null;
     }
@@ -445,7 +445,7 @@ class MatchingSearch {
         return results;
     }
 
-    private MethodSignature findMethodName(IDexUnit dex, List<MethodSignature> sigs, String proto, boolean prototype,
+    private MethodSignature findMethodName(List<MethodSignature> sigs, String proto, boolean prototype,
             String classPath, Collection<MethodSignature> alreadyProcessedMethods, IDexMethod eMethod) {
         List<MethodSignature> results = findMethodNames(sigs, proto, prototype, classPath, alreadyProcessedMethods,
                 eMethod);
@@ -453,7 +453,7 @@ class MatchingSearch {
             return results.get(0);
         }
         else if(results.size() > 1) {
-            filterList(dex, eMethod, results);
+            filterList(eMethod, results);
             if(results.size() == 1) {
                 return results.get(0);
             }
@@ -479,7 +479,7 @@ class MatchingSearch {
         return DexUtilLocal.isMethodCompatible(methodName, strArray.getMname());
     }
 
-    private void filterList(IDexUnit dex, IDexMethod eMethod, List<MethodSignature> results) {
+    private void filterList(IDexMethod eMethod, List<MethodSignature> results) {
         // only on post processing
         // firstly, filter versions
         DatabaseReferenceFile f = fileMatches.getFileFromClass(eMethod.getClassType().getImplementingClass());
@@ -516,36 +516,15 @@ class MatchingSearch {
             }
         }
 
-        // secondly, filter by caller
-        if(!params.useCallerList ||  apkCallerLists.isEmpty()) {
-            return;
-        }
-        Map<Integer, Integer> callers = apkCallerLists.get(eMethod.getIndex());
-        if(callers == null) {
-            return;
-        }
-        // caller may not be referenced in lib
-        filtered.clear();
-        outer: for(MethodSignature sig: results) {
-            Map<String, Integer> targets = new HashMap<>(sig.getTargetCaller());
-            if(targets.isEmpty()) {
-                continue;
-            }
-            for(Entry<Integer, Integer> c: callers.entrySet()) {
-                // is there a method matching?
-                // FIXME allow partial matching? maybe in later steps
-                IDexMethod cMethod = dex.getMethod(c.getKey());
-                Integer occ = targets.remove(cMethod.getSignature(true));
-                if(occ == null || occ != c.getValue()) {
-                    //not the same method
-                    continue outer;
+        for(IAndrosigModule module: modules) {
+            filtered = module.filterList(dex, eMethod, results);
+            if(filtered != null && !filtered.isEmpty()) {
+                results.clear();
+                results.addAll(filtered);
+                if(results.size() == 1) {
+                    return;
                 }
             }
-            filtered.add(sig);
-        }
-        if(!filtered.isEmpty()) {
-            results.clear();
-            results.addAll(filtered);
         }
     }
 

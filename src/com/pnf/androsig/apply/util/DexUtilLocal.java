@@ -5,9 +5,15 @@
  */
 package com.pnf.androsig.apply.util;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+
 import com.pnfsoftware.jeb.core.units.code.ICodeItem;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
+import com.pnfsoftware.jeb.util.base.JavaUtil;
 
 /**
  * @author Cedric Lucas
@@ -112,4 +118,56 @@ public class DexUtilLocal {
         return (methodName.equals(name1) && methodParams.equals(params1)) == (methodName.equals(name2)
                 && methodParams.equals(params2));
     }
+
+    public static List<String> parseSignatureParameters(String parameters) {
+        List<String> params = new ArrayList<>();
+        int i = 0;
+        while(i < parameters.length()) {
+            int begin = i;
+            while(parameters.charAt(i) == '[') {
+                i++;
+            }
+            char type = parameters.charAt(i);
+            if(type == 'L') {
+                int end = parameters.indexOf(';', i);
+                if(end < 0) {
+                    // invalid sig
+                    return null;
+                }
+                params.add(parameters.substring(begin, end + 1));
+                i = end + 1;
+            }
+            else if(JavaUtil.letterToPrimitive(type + "") != null) {
+                params.add(parameters.substring(begin, i + 1));
+                i++;
+            }
+            else {
+                // invalid param
+                return null;
+            }
+        }
+        return params;
+    }
+
+    public static List<IDexClass> getSortedClasses(IDexUnit unit) {
+        List<? extends IDexClass> classes = unit.getClasses();
+        if(classes == null || classes.size() == 0) {
+            return null;
+        }
+        List<IDexClass> sortedClasses = new ArrayList<>(classes);
+        Collections.sort(sortedClasses, new Comparator<IDexClass>() {
+            @Override
+            public int compare(IDexClass o1, IDexClass o2) {
+                String sig1 = o1.getSignature(false);
+                String sig2 = o2.getSignature(false);
+                if(sig1.length() == sig2.length()) {
+                    return sig1.compareTo(sig2);
+                }
+                return Integer.compare(sig1.length(), sig2.length());
+            }
+        });
+        Collections.reverse(sortedClasses);
+        return sortedClasses;
+    }
+
 }

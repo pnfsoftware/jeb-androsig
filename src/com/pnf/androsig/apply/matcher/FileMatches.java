@@ -97,27 +97,8 @@ public class FileMatches {
             refFile = new DatabaseReferenceFile(file, null);
             usedSigFiles.put(file, refFile);
         }
-        mergeVersions(refFile, values);
+        refFile.mergeVersions(values);
         return true;
-    }
-
-    static void mergeVersions(DatabaseReferenceFile refFile, Collection<MethodSignature> values) {
-        if(refFile.versions == null) {
-            refFile.versions = new HashMap<>();
-        }
-        for(MethodSignature value: values) {
-            // put first as reference
-            String[] versions = MethodSignature.getVersions(value);
-            if(versions == null) {
-                // sig1 or no version specified
-                increment(refFile.versions, "all");
-            }
-            else {
-                for(String v: versions) {
-                    increment(refFile.versions, v);
-                }
-            }
-        }
     }
 
     private static List<Set<String>> mergeVersions(List<Set<String>> reducedVersions,
@@ -185,16 +166,6 @@ public class FileMatches {
         return reducedVersions;
     }
 
-    static void increment(Map<String, Integer> versionOccurences, String key) {
-        Integer val = versionOccurences.get(key);
-        if(val == null) {
-            versionOccurences.put(key, 1);
-        }
-        else {
-            versionOccurences.put(key, val + 1);
-        }
-    }
-
     public List<List<String>> getOrderedVersions(String f) {
         return getOrderedVersions(usedSigFiles.get(f));
     }
@@ -214,7 +185,7 @@ public class FileMatches {
     }
 
 
-    String getMatchedClassFile(IDexClass cl, String className, DatabaseReference ref) {
+    public String getMatchedClassFile(IDexClass cl, String className, DatabaseReference ref) {
         DatabaseReferenceFile refFile = getFileFromClass(cl);
         if(refFile != null) {
             return refFile.file;
