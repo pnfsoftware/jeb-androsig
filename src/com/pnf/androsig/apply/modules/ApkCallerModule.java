@@ -118,7 +118,7 @@ public class ApkCallerModule implements IAndrosigModule {
             List<MethodSignature> compatibleSignatures = ref.getSignaturesForClassname(f, value.getCname(), true);
             for(MethodSignature sig: compatibleSignatures) {
                 if(sig.getMname().equals(value.getMname()) && sig.getPrototype().equals(value.getPrototype())
-                        && !Strings.isBlank(sig.getCaller())) {
+                        && sig.hasCaller()) {
                     candidates.add(sig);
                 }
             }

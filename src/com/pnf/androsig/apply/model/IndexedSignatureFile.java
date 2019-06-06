@@ -37,15 +37,19 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
  */
 public class IndexedSignatureFile implements ISignatureFile {
 
+    private static final int CURRENT_INDEX_VERSION = 2;
+    private static final boolean FORCE_GENERATION = false;
     private static final ILogger logger = GlobalLog.getLogger(IndexedSignatureFile.class);
 
     private Map<String, List<Integer>> tightSignaturesIdx = new HashMap<>();
     private Map<String, List<Integer>> looseSignaturesIdx = new HashMap<>();
     private Map<String, List<Integer>> signaturesByClassnameIdx = new HashMap<>();
+    private Map<String, List<Integer>> signaturesByMethodsIdx = new HashMap<>();
 
     private Map<String, List<MethodSignature>> tightSignatures = new HashMap<>();
     private Map<String, List<MethodSignature>> looseSignatures = new HashMap<>();
     private Map<String, List<MethodSignature>> signaturesByClassname = new HashMap<>();
+    private Map<String, List<MethodSignature>> signaturesByMethod = new HashMap<>();
     private Map<String, List<MethodSignature>> metaByClassname = new HashMap<>();
     private Map<String, LibraryInfo> allLibraryInfos = new HashMap<>();
     private int allSignatureCount = 0;
@@ -66,7 +70,7 @@ public class IndexedSignatureFile implements ISignatureFile {
             byte[] data = Files.readAllBytes(indexFile.toPath());
             int startIndex = 0;
             int index = validateHeader(sigFile, indexFile, data);
-            if(index < 0) {
+            if(FORCE_GENERATION || index < 0) {
                 if(!buildIndexFile(sigFile, indexFile)) {
                     return false;
                 }
@@ -98,6 +102,9 @@ public class IndexedSignatureFile implements ISignatureFile {
                         }
                         else if(currentList == looseSignaturesIdx) {
                             currentList = signaturesByClassnameIdx;
+                        }
+                        else if(currentList == signaturesByClassnameIdx) {
+                            currentList = signaturesByMethodsIdx;
                         }
                         else {
                             break;
@@ -181,7 +188,7 @@ public class IndexedSignatureFile implements ISignatureFile {
     @Override
     public List<MethodSignature> getTightSignatures(String hashcode) {
         List<MethodSignature> res = tightSignatures.get(hashcode);
-        if (res == null) {
+        if(res == null) {
             res = load(tightSignaturesIdx, hashcode, tightSignatures);
         }
         if(res.isEmpty()) {
@@ -192,7 +199,66 @@ public class IndexedSignatureFile implements ISignatureFile {
 
     private List<MethodSignature> load(Map<String, List<Integer>> mapIdx, String hashcode,
             Map<String, List<MethodSignature>> map) {
-        return load(mapIdx, hashcode, map, null);
+        List<MethodSignature> signatures = load(mapIdx, hashcode, map, null);
+        mergeSignatures(signatures);
+        return signatures;
+    }
+
+    private void mergeSignatures(List<MethodSignature> signatures) {
+        mergeSignatures(signatures, null);
+    }
+
+    private void mergeSignatures(List<MethodSignature> signatures, List<MethodSignature> allMethods) {
+        if(signatures == null) {
+            // preventive: for meta essentially
+            return;
+        }
+        boolean refreshClassname = allMethods == null;
+        for(int i = 0; i < signatures.size(); i++) {
+            // first remove duplicated lines
+            MethodSignature ref = signatures.get(i);
+            for(int j = i + 1; j < signatures.size(); j++) {
+                MethodSignature current = signatures.get(j);
+                if(MethodSignature.equalsClassMethodSig(ref, current)) {
+                    // same signature
+                    signatures.remove(j);
+                    j--;
+                }
+            }
+
+            // second, include same methods
+            boolean shared = false;
+            if(refreshClassname) {
+                String key = ref.getCname() + "->" + ref.getMname();
+                List<Integer> sameMethods = signaturesByMethodsIdx.get(key);
+                if(sameMethods == null || sameMethods.size() == 2) {
+                    continue; // only one
+                }
+                allMethods = signaturesByClassname.get(ref.getCname());
+                if(allMethods == null) {
+                    allMethods = load(signaturesByMethodsIdx, key, signaturesByMethod, null);
+                }
+                else {
+                    shared = true;
+                }
+            }
+            if(allMethods.size() == 1) {
+                continue;
+            }
+            for(MethodSignature m: allMethods) {
+                if(m == ref) {
+                    continue;
+                }
+                if(MethodSignature.equalsMethodSig(ref, m)) {
+                    if(shared) {
+                        signatures.set(i, m);
+                    }
+                    else {
+                        ref.addRevision(m.getOwnRevision());
+                    }
+                }
+            }
+        }
     }
 
     private List<MethodSignature> load(Map<String, List<Integer>> mapIdx, String hashcode,
@@ -201,7 +267,7 @@ public class IndexedSignatureFile implements ISignatureFile {
         List<MethodSignature> metaSigs = new ArrayList<>();
         map.put(hashcode, sigs);
         try {
-            if (f == null) {
+            if(f == null) {
                 f = new RandomAccessFile(sigFile, "r");
             }
             List<Integer> indexes = mapIdx.get(hashcode);
@@ -254,6 +320,9 @@ public class IndexedSignatureFile implements ISignatureFile {
             List<MethodSignature> res = signaturesByClassname.get(className);
             if(res == null) {
                 res = load(signaturesByClassnameIdx, className, signaturesByClassname, metaByClassname);
+                List<MethodSignature> ref = new ArrayList<>(res);
+                mergeSignatures(res, ref);
+                mergeSignatures(metaByClassname.get(className), ref);
             }
             return res;
         }
@@ -282,13 +351,14 @@ public class IndexedSignatureFile implements ISignatureFile {
 
     public static boolean buildIndexFile(File sigFile, File indexFile) {
         long fileSize = sigFile.length();
-        if (fileSize > Integer.MAX_VALUE) {
+        if(fileSize > Integer.MAX_VALUE) {
             throw new RuntimeException("Signature file is too big. Is it really a signature file? If so, split it.");
         }
         Charset utf8 = Charset.forName("UTF-8");
         Map<String, List<Integer>> tightHashcodes = new HashMap<>();
         Map<String, List<Integer>> looseHashcodes = new HashMap<>();
         Map<String, List<Integer>> classes = new HashMap<>();
+        Map<String, List<Integer>> methods = new HashMap<>();
         try {
             byte[] data = Files.readAllBytes(sigFile.toPath());
             int startIndex = 0;
@@ -335,6 +405,17 @@ public class IndexedSignatureFile implements ISignatureFile {
                     }
                     files.add(startIndex);
                     files.add(endIndex);
+                    String methodName = MethodSignature.getMethodName(subLines);
+                    if(methodName != null && !methodName.isEmpty()) {
+                        String key = className + "->" + methodName;
+                        List<Integer> filesM = methods.get(key);
+                        if(filesM == null) {
+                            filesM = new ArrayList<>();
+                            methods.put(key, filesM);
+                        }
+                        filesM.add(startIndex);
+                        filesM.add(endIndex);
+                    }
                 }
                 startIndex = endIndex + 1;
             }
@@ -342,46 +423,26 @@ public class IndexedSignatureFile implements ISignatureFile {
             byte[] buffInt = new byte[4];
 
             // header
-            writeInt(buffInt, 1, bos); // version
+            writeInt(buffInt, CURRENT_INDEX_VERSION, bos); // version
             writeInt(buffInt, (int)fileSize, bos); // filesize
             bos.write('\n');
             bos.write('\n');
-            
+
 
             // tight section
-            for(Entry<String, List<Integer>> entry: tightHashcodes.entrySet()) {
-                bos.write(entry.getKey().getBytes(utf8));
-                bos.write('=');
-                writeInt(buffInt, entry.getValue().size(), bos);
-                for(Integer address: entry.getValue()) {
-                    writeInt(buffInt, address, bos);
-                }
-                bos.write('\n');
-            }
+            writeSection(bos, utf8, buffInt, tightHashcodes);
 
             // loose section
             bos.write('\n');
-            for(Entry<String, List<Integer>> entry: looseHashcodes.entrySet()) {
-                bos.write(entry.getKey().getBytes(utf8));
-                bos.write('=');
-                writeInt(buffInt, entry.getValue().size(), bos);
-                for(Integer address: entry.getValue()) {
-                    writeInt(buffInt, address, bos);
-                }
-                bos.write('\n');
-            }
+            writeSection(bos, utf8, buffInt, looseHashcodes);
 
             // classes section
             bos.write('\n');
-            for(Entry<String, List<Integer>> entry: classes.entrySet()) {
-                bos.write(entry.getKey().getBytes(utf8));
-                bos.write('=');
-                writeInt(buffInt, entry.getValue().size(), bos);
-                for(Integer address: entry.getValue()) {
-                    writeInt(buffInt, address, bos);
-                }
-                bos.write('\n');
-            }
+            writeSection(bos, utf8, buffInt, classes);
+
+            bos.write('\n');
+            writeMethodSection(bos, utf8, buffInt, methods);
+
             IO.writeFile(indexFile, bos.toByteArray());
         }
         catch(IOException e) {
@@ -389,6 +450,35 @@ public class IndexedSignatureFile implements ISignatureFile {
             return false;
         }
         return true;
+    }
+
+    private static void writeSection(ByteArrayOutputStream bos, Charset utf8, byte[] buffInt,
+            Map<String, List<Integer>> classes) throws IOException {
+        for(Entry<String, List<Integer>> entry: classes.entrySet()) {
+            bos.write(entry.getKey().getBytes(utf8));
+            bos.write('=');
+            writeInt(buffInt, entry.getValue().size(), bos);
+            for(Integer address: entry.getValue()) {
+                writeInt(buffInt, address, bos);
+            }
+            bos.write('\n');
+        }
+    }
+
+    private static void writeMethodSection(ByteArrayOutputStream bos, Charset utf8, byte[] buffInt,
+            Map<String, List<Integer>> classes) throws IOException {
+        for(Entry<String, List<Integer>> entry: classes.entrySet()) {
+            if(entry.getValue().size() == 2) {
+                continue; // only save duplicated entries
+            }
+            bos.write(entry.getKey().getBytes(utf8));
+            bos.write('=');
+            writeInt(buffInt, entry.getValue().size(), bos);
+            for(Integer address: entry.getValue()) {
+                writeInt(buffInt, address, bos);
+            }
+            bos.write('\n');
+        }
     }
 
     private static void writeInt(byte[] buffInt, int val, ByteArrayOutputStream bos) throws IOException {
@@ -493,7 +583,7 @@ public class IndexedSignatureFile implements ISignatureFile {
         }
         int version = readInt(data, index);
         index += 4;
-        if(version != 1) {
+        if(version != CURRENT_INDEX_VERSION) {
             return -1;
         }
         int expectedSize = readInt(data, index);

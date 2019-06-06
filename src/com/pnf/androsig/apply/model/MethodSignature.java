@@ -26,6 +26,7 @@ import java.util.Map;
 
 import com.pnf.androsig.common.SignatureHandler;
 import com.pnfsoftware.jeb.util.encoding.Conversion;
+import com.pnfsoftware.jeb.util.format.Strings;
 
 /**
  * Definition of one line of the signature files.
@@ -38,11 +39,77 @@ public class MethodSignature {
     private String mname;
     private String shorty;
     private String prototype;
-    private int opcount;
-    private String mhash_tight;
-    private String mhash_loose;
-    private String caller;
     private String versions;
+    /** avoid split high cpu usage */
+    private String[] versionsCache;
+    private List<MethodSignatureRevision> methodSignatureVersions = new ArrayList<>();
+
+    public static class MethodSignatureRevision {
+        private int opcount;
+        private String mhash_tight;
+        private String mhash_loose;
+        private String caller;
+        private String versions;
+
+        public String getMhash_tight() {
+            return mhash_tight;
+        }
+
+        public String getMhash_loose() {
+            return mhash_loose;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + ((caller == null) ? 0: caller.hashCode());
+            result = prime * result + ((mhash_loose == null) ? 0: mhash_loose.hashCode());
+            result = prime * result + ((mhash_tight == null) ? 0: mhash_tight.hashCode());
+            result = prime * result + opcount;
+            result = prime * result + ((versions == null) ? 0: versions.hashCode());
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if(this == obj)
+                return true;
+            if(obj == null)
+                return false;
+            if(getClass() != obj.getClass())
+                return false;
+            MethodSignatureRevision other = (MethodSignatureRevision)obj;
+            if(caller == null) {
+                if(other.caller != null)
+                    return false;
+            }
+            else if(!caller.equals(other.caller))
+                return false;
+            if(mhash_loose == null) {
+                if(other.mhash_loose != null)
+                    return false;
+            }
+            else if(!mhash_loose.equals(other.mhash_loose))
+                return false;
+            if(mhash_tight == null) {
+                if(other.mhash_tight != null)
+                    return false;
+            }
+            else if(!mhash_tight.equals(other.mhash_tight))
+                return false;
+            if(opcount != other.opcount)
+                return false;
+            if(versions == null) {
+                if(other.versions != null)
+                    return false;
+            }
+            else if(!versions.equals(other.versions))
+                return false;
+            return true;
+        }
+
+    }
 
     /**
      * Get the signature of the class.
@@ -80,13 +147,25 @@ public class MethodSignature {
         return prototype;
     }
 
+    public boolean isEmptyOp() {
+        if(methodSignatureVersions.size() == 0) {
+            return false;
+        }
+        for(MethodSignatureRevision rev: methodSignatureVersions) {
+            if(rev.opcount != 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * Get the number of instructions in the method.
      * 
      * @return the number of instructions in the method
      */
-    public int getOpcount() {
-        return opcount;
+    public int getOpcount(int index) {
+        return methodSignatureVersions.get(index).opcount;
     }
 
     /**
@@ -94,8 +173,8 @@ public class MethodSignature {
      * 
      * @return the tight signature of the method
      */
-    public String getMhash_tight() {
-        return mhash_tight;
+    public String getMhash_tight(int index) {
+        return methodSignatureVersions.get(index).mhash_tight;
     }
 
     /**
@@ -103,8 +182,8 @@ public class MethodSignature {
      * 
      * @return the loose signature of the method
      */
-    public String getMhash_loose() {
-        return mhash_loose;
+    public String getMhash_loose(int index) {
+        return methodSignatureVersions.get(index).mhash_loose;
     }
 
     /**
@@ -112,19 +191,50 @@ public class MethodSignature {
      * 
      * @return the list of all caller methods
      */
-    public String getCaller() {
-        return caller;
+    public boolean hasCaller() {
+        if(methodSignatureVersions.size() == 0) {
+            return false;
+        }
+        if(methodSignatureVersions.size() != 1) {
+            for(MethodSignatureRevision rev: methodSignatureVersions) {
+                if(!Strings.isBlank(rev.caller)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public Map<String, Integer> getTargetCaller() {
-        return getTargetCaller(caller);
+        // TODO
+        //return getTargetCaller(methodSignatureVersions.get(index).caller);
+        return getTargetCaller(methodSignatureVersions.get(0).caller);
+    }
+
+    private String getParentField() {
+        if(methodSignatureVersions.size() == 0) {
+            return null;
+        }
+        String superT = methodSignatureVersions.get(0).caller;
+        if(methodSignatureVersions.size() != 1) {
+            for(MethodSignatureRevision rev: methodSignatureVersions) {
+                if(!rev.caller.equals(superT)) {
+                    return null;
+                }
+            }
+        }
+        if(superT.isEmpty()) {
+            return null;
+        }
+        return superT;
     }
 
     public List<String> getTargetSuperType() {
-        if(caller.isEmpty()) {
+        String superT = getParentField();
+        if(superT == null) {
             return null;
         }
-        String[] parents = caller.split("\\|\\|");
+        String[] parents = superT.split("\\|\\|");
         if(parents.length == 0 || parents[0].isEmpty()) {
             return null;
         }
@@ -132,10 +242,11 @@ public class MethodSignature {
     }
 
     public List<String> getTargetInterfaces() {
-        if(caller.isEmpty()) {
+        String superT = getParentField();
+        if(superT == null) {
             return null;
         }
-        String[] parents = caller.split("\\|\\|");
+        String[] parents = superT.split("\\|\\|");
         if(parents.length != 2) {
             return null;
         }
@@ -170,19 +281,21 @@ public class MethodSignature {
         if(versions == null || versions.isEmpty()) {
             return null;
         }
-        return versions.split(";");
+        if(versionsCache == null) {
+            versionsCache = versions.split(";");
+        }
+        return versionsCache;
     }
 
     public MethodSignature() {
     }
 
-    public MethodSignature(String cname, String mname, String shorty, String prototype, String caller,
+    public MethodSignature(String cname, String mname, String shorty, String prototype,
             String versions) {
         this.cname = cname;
         this.mname = mname;
         this.shorty = shorty;
         this.prototype = prototype;
-        this.caller = caller;
         this.versions = versions;
     }
 
@@ -224,31 +337,57 @@ public class MethodSignature {
             return null;
         }
 
-        ml.opcount = Conversion.stringToInt(tokens[4]);
-        if(ml.opcount < 0) {
-            return null;
-        }
-
-        ml.mhash_tight = tokens[5].equals("null") ? "": tokens[5];
-
-        ml.mhash_loose = tokens[6].equals("null") ? "": tokens[6];
-
-        ml.caller = tokens[7].equals("null") ? "": tokens[7];
-
         // signature v2
+        ml.addRevision(buildRevision(tokens));
         if(tokens.length > 8) {
             ml.versions = tokens[8];
         }
+
         return ml;
     }
 
-    /**
-     * Override toString
-     */
+    public MethodSignatureRevision getOwnRevision() {
+        return methodSignatureVersions.get(0);
+    }
+
+    private static MethodSignatureRevision buildRevision(String[] tokens) {
+        MethodSignatureRevision revision = new MethodSignatureRevision();
+        revision.opcount = Conversion.stringToInt(tokens[4]);
+        if(revision.opcount < 0) {
+            return null;
+        }
+
+        revision.mhash_tight = tokens[5].equals("null") ? "": tokens[5];
+
+        revision.mhash_loose = tokens[6].equals("null") ? "": tokens[6];
+
+        revision.caller = tokens[7].equals("null") ? "": tokens[7];
+
+        // signature v2
+        if(tokens.length > 8) {
+            revision.versions = tokens[8];
+        }
+        return revision;
+    }
+
+    public void addRevision(MethodSignatureRevision revision) {
+        if(methodSignatureVersions.contains(revision)) {
+            return;
+        }
+        methodSignatureVersions.add(revision);
+
+        if(versions == null) {
+            versions = revision.versions;
+        }
+        else {
+            versions += ";" + revision.versions;
+        }
+        versionsCache = null;
+    }
+
     @Override
     public String toString() {
-        return String.format("%s,%s,%s,%s,%d,%s,%s,%s", cname, mname, shorty, prototype, opcount, mhash_tight,
-                mhash_loose, caller);
+        return String.format("%s,%s,%s,%s", cname, mname, shorty, prototype);
     }
 
     /* SET Of LAZY METHODS TO AVOID CREATION OF MethodSignature OBJECT */
@@ -276,7 +415,7 @@ public class MethodSignature {
         int iStart = startIndex;
         for(int i = startIndex; i < endIndex; i++) {
             if(data[i] == ',') {
-                if(index == 0 || index == 5 || index == 6) {
+                if(index == 0 || index == 1 || index == 5 || index == 6) {
                     tokens[index] = new String(data, iStart, i - iStart);
                 }
                 index++;
@@ -331,36 +470,21 @@ public class MethodSignature {
         return signatureLine[8].split(";");
     }
 
-    // TODO remove all this (only for transition)
-    public static String getTightSignature(MethodSignature signatureLine) {
-        return signatureLine.mhash_tight;
-    }
-
-    public static String getLooseSignature(MethodSignature signatureLine) {
-        return signatureLine.mhash_loose;
-    }
-
-    public static String getShorty(MethodSignature signatureLine) {
-        return signatureLine.shorty;
-    }
-
-    public static String getPrototype(MethodSignature signatureLine) {
-        return signatureLine.prototype;
-    }
-
-    public static String getClassname(MethodSignature signatureLine) {
-        return signatureLine.cname;
-    }
-
-    public static String getMethodName(MethodSignature signatureLine) {
-        return signatureLine.mname;
-    }
-
     public static String[] getVersions(MethodSignature signatureLine) {
         return signatureLine.getVersions();
     }
 
     public String[] toTokens() {
-        return new String[]{cname, mname, shorty, prototype, caller};
+        return new String[]{cname, mname, shorty, prototype};
     }
+
+    public static boolean equalsClassMethodSig(MethodSignature ref, MethodSignature current) {
+        return ref.getCname().equals(current.getCname()) && ref.getMname().equals(current.getMname())
+                && ref.getPrototype().equals(current.getPrototype());
+    }
+
+    public static boolean equalsMethodSig(MethodSignature ref, MethodSignature current) {
+        return ref.getMname().equals(current.getMname()) && ref.getPrototype().equals(current.getPrototype());
+    }
+
 }

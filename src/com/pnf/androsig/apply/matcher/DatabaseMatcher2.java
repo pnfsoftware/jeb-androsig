@@ -24,7 +24,6 @@ import com.pnf.androsig.apply.model.DexHashcodeList;
 import com.pnf.androsig.apply.model.ISignatureFile;
 import com.pnf.androsig.apply.model.LibraryInfo;
 import com.pnf.androsig.apply.model.MethodSignature;
-import com.pnf.androsig.apply.model.SignatureFile;
 import com.pnf.androsig.apply.modules.ApkCallerModule;
 import com.pnf.androsig.apply.modules.ReverseMatchingModule;
 import com.pnf.androsig.apply.util.DexUtilLocal;
@@ -47,7 +46,8 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
  * See {@link #getMatchedClasses()} and {@link #getMatchedMethods()} for results. This matcher
  * expects a class is replaced by a class (no cross changes). <br>
  * Note that contrary to v1 version which picks only one hashcode, this matcher uses a
- * {@link SignatureFile} per file, allowing to have a precise match, but it may consume more memory.
+ * {@link ISignatureFile} per file, allowing to have a precise match, but it may consume more
+ * memory.
  * 
  * <p>
  * In details, there are several important structures:
@@ -116,6 +116,22 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         }
     }
 
+    private void addMatchedClass(IDexClass cl, String classname, boolean safe) {
+        if(matchedClasses.get(cl.getIndex()) != null) {
+            logger.error("Conflict: Try to replace class %s", matchedClasses.get(cl.getIndex()));
+            return;
+        }
+        if(matchedClasses.containsValue(classname)) {
+            logger.error("Conflict: Try to bind class %s to %s which is already bind to ", classname,
+                    cl.getSignature(false), cl.getSignature(true));
+            return;
+        }
+        matchedClasses.put(cl.getIndex(), classname);
+        if(!safe) {
+            fileMatches.removeClassFiles(cl);
+        }
+    }
+
     @Override
     public void storeMatchedClassesAndMethods(IDexUnit unit, DexHashcodeList dexHashCodeList, boolean firstRound) {
         for(IAndrosigModule module: modules) {
@@ -134,8 +150,6 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         // Fully deterministic: select the best file or nothing: let populate usedSigFiles
         boolean processSecondPass = storeFinalCandidates(unit, sortedClasses, dexHashCodeList, firstRound, true);
 
-        fileMatches.stable = true;
-
         if(!firstRound && processSecondPass) {
             // more open: now allow to select one file amongst all matching
             storeFinalCandidates(unit, sortedClasses, dexHashCodeList, firstRound, false);
@@ -150,7 +164,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             if(cl != null) {
                 String newName = matchedClasses.get(cl.getIndex());
                 if(newName == null) {
-                    matchedClasses.put(cl.getIndex(), entry.getValue());
+                    addMatchedClass(cl, entry.getValue(), false);
                 }
                 else if(!newName.equals(entry.getValue())) {
                     logger.warn("Conflict for class: Class %s was already renamed to %s. Can not rename to %s",
@@ -224,8 +238,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             }
             if(candidates.size() == 1) {
                 InnerMatch innerMatch = candidates.get(0);
+                addMatchedClass(eClass, innerMatch.className, false);
                 fileMatches.addVersions(innerMatch.file, innerMatch.classPathMethod.values());
-                matchedClasses.put(eClass.getIndex(), innerMatch.className);
             }
             else {
                 fileCandidates = new MatchingSearch(dex, dexHashCodeList, ref, params, fileMatches, modules,
@@ -290,7 +304,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
 
                     // is there only one class that can match? TODO version filter?
                     List<MethodSignature> candidates = MatchingSearch.mergeSignaturesPerClass(compatibleSignatures);
-                    Set<String> versions = FileMatches.getVersions(parentClass, matchedSigMethods);
+                    Set<String> versions = null;
                     candidates = filterVersions(candidates, versions);
                     candidates = candidates.stream()
                             .filter(inner -> isInnerClassCandidate(dex, inner, eClass, innerLevel))
@@ -628,7 +642,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                     return false;
                 }
                 logger.i("Found match class: %s from file %s", innerMatch.className, innerMatch.file);
-                matchedClasses.put(eClass.getIndex(), innerMatch.className);
+                addMatchedClass(eClass, innerMatch.className, true);
                 ArrayList<Integer> tempArrayList = dupClasses.get(innerMatch.className);
                 if(tempArrayList != null) {
                     tempArrayList.add(eClass.getIndex());
@@ -643,10 +657,13 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
 
                 // postprocess: reinject class
                 for(Entry<Integer, MethodSignature> methodName_method: innerMatch.classPathMethod.entrySet()) {
+                    MethodSignature strArray = methodName_method.getValue();
+                    if(strArray.getPrototype().isEmpty()) {
+                        continue; // shorty or several matched: can not reinject classes anyway
+                    }
                     IDexMethod m = unit.getMethod(methodName_method.getKey());
                     IDexPrototype proto = unit.getPrototypes().get(m.getPrototypeIndex());
                     String prototypes = proto.generate(true);
-                    MethodSignature strArray = methodName_method.getValue();
                     if(prototypes.equals(strArray.getPrototype())) {
                         continue;
                     }
@@ -752,7 +769,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                     IDexPrototype proto = dex.getPrototypes().get(eMethod.getPrototypeIndex());
                     String prototypes = proto.generate(true);
                     String shorty = dex.getStrings().get(proto.getShortyIndex()).getValue();
-                    ms = new MethodSignature(className, methodName, shorty, prototypes, null, null);
+                    ms = new MethodSignature(className, methodName, shorty, prototypes, null);
                 }
             }
             alreadyMatches.add(ms);

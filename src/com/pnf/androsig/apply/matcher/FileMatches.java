@@ -8,23 +8,15 @@ package com.pnf.androsig.apply.matcher;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.MethodSignature;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
-import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
-import com.pnfsoftware.jeb.util.collect.CollectionUtil;
-import com.pnfsoftware.jeb.util.format.Strings;
 
 /**
  * Keep a library of files/versions used and try to get coherence with one version.
@@ -34,18 +26,10 @@ import com.pnfsoftware.jeb.util.format.Strings;
  */
 public class FileMatches {
 
-    /**
-     * While not stable, we try to maintain usedSigFilesReduced (we could have several parallel
-     * versions used for same library). Once stable, refuse incorrect versions
-     */
-    boolean stable = false;
-
     private Map<Integer, DatabaseReferenceFile> matchedClassesFile = new HashMap<>();
 
     /** Used files -> list of versions match (with occurrences) */
     private Map<String, DatabaseReferenceFile> usedSigFiles = new HashMap<>();
-    /** Used files -> list of versions */
-    private Map<String, List<Set<String>>> usedSigFilesReduced = new HashMap<>();
 
     public Set<String> getSignatureFileUsed() {
         return usedSigFiles.keySet();
@@ -57,10 +41,6 @@ public class FileMatches {
 
     public boolean isSignatureFileUsed(String f) {
         return usedSigFiles.containsKey(f);
-    }
-
-    private boolean useReducedList() {
-        return stable;
     }
 
     public DatabaseReferenceFile getFileFromClass(IDexClass dexClass) {
@@ -85,13 +65,6 @@ public class FileMatches {
     }
 
     public boolean addVersions(String file, Collection<MethodSignature> values) {
-        if(!stable) {
-            List<Set<String>> res = mergeVersions(usedSigFilesReduced.get(file), values, true);
-            if(res == null) {
-                return false;
-            }
-            usedSigFilesReduced.put(file, res);
-        }
         DatabaseReferenceFile refFile = usedSigFiles.get(file);
         if(refFile == null) {
             refFile = new DatabaseReferenceFile(file, null);
@@ -99,71 +72,6 @@ public class FileMatches {
         }
         refFile.mergeVersions(values);
         return true;
-    }
-
-    private static List<Set<String>> mergeVersions(List<Set<String>> reducedVersions,
-            Collection<MethodSignature> values, boolean mergeTypes) {
-        if(reducedVersions == null) {
-            reducedVersions = new ArrayList<>();
-        }
-        List<String> allVersionList = new ArrayList<>();
-        boolean invalidSignature = false;
-        for(MethodSignature value: values) {
-            // put first as reference
-            String[] versions = MethodSignature.getVersions(value);
-            if(versions == null) {
-                // sig1 or no version specified, no need to reduce
-            }
-            else {
-                Set<String> versionList = new HashSet<>();
-                for(String v: versions) {
-                    if(mergeTypes) {
-                        versionList.add(v.replace("_d8r", "").replace("_d8d", "").replace("_d8", ""));
-                    }
-                    else {
-                        versionList.add(v);
-                    }
-                }
-                if(allVersionList.isEmpty()) {
-                    allVersionList.addAll(versionList);
-                }
-                else {
-                    allVersionList = CollectionUtil.intersection(allVersionList, new ArrayList<>(versionList));
-                    if(allVersionList.isEmpty()) {
-                        invalidSignature = true;
-                        break;
-                    }
-                }
-            }
-        }
-        if(invalidSignature) {
-            return null;
-        }
-        int i = 0;
-        boolean found = false;
-        for(Set<String> versionSet: reducedVersions) {
-            for(String v: allVersionList) {
-                if(versionSet.contains(v)) {
-                    // ok, here we found that current version match
-                    found = true;
-                    break;
-                }
-            }
-            if(found) {
-                break;
-            }
-            // if not found, this means that there is no set defined for this version
-            i++;
-        }
-
-        if(found) {
-            List<String> newSet = CollectionUtil.intersection(allVersionList, new ArrayList<>(reducedVersions.get(i)));
-            reducedVersions.set(i, new HashSet<>(newSet));
-        }
-        else {
-            reducedVersions.add(new HashSet<>(allVersionList));
-        }
-        return reducedVersions;
     }
 
     public List<List<String>> getOrderedVersions(String f) {
@@ -174,14 +82,7 @@ public class FileMatches {
         if(refFile == null) {
             return new ArrayList<>();
         }
-        if(refFile.versions == null) {
-            return new ArrayList<>();
-        }
-        List<List<String>> res = orderVersions(refFile.versions);
-        if(hasNoVersion(res)) {
-            return new ArrayList<>();
-        }
-        return res;
+        return refFile.getOrderedVersions();
     }
 
 
@@ -247,10 +148,9 @@ public class FileMatches {
     private int getLevel(DatabaseReference ref, String f, String className) {
         List<MethodSignature> compatibleSignatures = ref.getSignaturesForClassname(f, className, true);
         DatabaseReferenceFile refFile = usedSigFiles.get(f);
-        Map<String, Integer> versions = refFile.versions;
-        List<List<String>> preferedOrderList = orderVersions(versions);
+        List<List<String>> preferedOrderList = refFile.getOrderedVersions();
         int level = 0;
-        if(hasNoVersion(preferedOrderList)) {
+        if(preferedOrderList.isEmpty()) {
             return level;
         }
         for(List<String> preferedOrder: preferedOrderList) {
@@ -268,45 +168,6 @@ public class FileMatches {
             level++;
         }
         return -1;
-    }
-
-    boolean hasNoVersion(List<List<String>> preferedOrderList) {
-        return preferedOrderList.size() == 1 && preferedOrderList.get(0).size() == 1
-                && preferedOrderList.get(0).get(0).equals("all");
-    }
-
-    List<List<String>> orderVersions(Map<String, Integer> versions) {
-        Map<Integer, List<String>> versionsRev = versions.entrySet().stream().collect(
-                Collectors.groupingBy(Map.Entry::getValue, Collectors.mapping(Map.Entry::getKey, Collectors.toList())));
-        versionsRev = new TreeMap<>(versionsRev);
-        List<List<String>> ordered = new ArrayList<>();
-        VersionComparator vsCmp = new VersionComparator();
-        for(Entry<Integer, List<String>> entry: versionsRev.entrySet()) {
-            List<String> vs = new ArrayList<>(entry.getValue());
-            Collections.sort(vs, vsCmp);
-            Collections.reverse(vs);
-            ordered.add(vs);
-        }
-        Collections.reverse(ordered);
-        if(useReducedList() && usedSigFilesReduced.size() == 1) {
-            // only one version as reference
-            List<List<String>> newOrdered = new ArrayList<>();
-            newOrdered.add(ordered.get(0));
-            return newOrdered;
-        }
-        return ordered;
-    }
-
-    private static class VersionComparator implements Comparator<String> {
-        @Override
-        public int compare(String v1, String v2) {
-            boolean v1Test = Strings.contains(v1.toLowerCase(), "rc", "alpha", "beta", "snapshot");
-            boolean v2Test = Strings.contains(v1.toLowerCase(), "rc", "alpha", "beta", "snapshot");
-            if(v1Test) {
-                return v2Test ? v1.compareTo(v2): 1;
-            }
-            return v2Test ? -1: v1.compareTo(v2);
-        }
     }
 
     public List<MethodSignature> filterMatchingSignatures(String f, List<MethodSignature> candidates) {
@@ -330,25 +191,11 @@ public class FileMatches {
         return newCandidates;
     }
 
-    public static Set<String> getVersions(IDexClass parentClass, Map<Integer, MethodSignature> matchedSigMethods) {
-        List<? extends IDexMethod> methods = parentClass.getMethods();
-        if(methods == null || methods.isEmpty()) {
-            return null;
+    public List<MethodSignature> getSignatureLines(DatabaseReference ref, String file, String hashcode, boolean tight) {
+        if(!usedSigFiles.containsKey(file)) {
+            return ref.getSignatureLines(file, hashcode, tight);
         }
-        List<Set<String>> reducedVersions = null;
-        for(IDexMethod eMethod: methods) {
-            if(!eMethod.isInternal()) {
-                continue;
-            }
-            if(matchedSigMethods.containsKey(eMethod.getIndex())) {
-                MethodSignature mSig = matchedSigMethods.get(eMethod.getIndex());
-                reducedVersions = mergeVersions(reducedVersions, Arrays.asList(mSig), false);
-            }
-        }
-        if(reducedVersions != null && reducedVersions.size() == 1) {
-            return reducedVersions.get(0);
-        }
-        return null;
+        DatabaseReferenceFile refFile = usedSigFiles.get(file);
+        return ref.getSignatureLines(refFile, hashcode, tight);
     }
-
 }

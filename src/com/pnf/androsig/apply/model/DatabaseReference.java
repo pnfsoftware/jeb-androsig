@@ -108,6 +108,15 @@ public class DatabaseReference {
         return tight ? sigFile.getTightSignatures(hashcode): sigFile.getLooseSignatures(hashcode);
     }
 
+    public List<MethodSignature> getSignatureLines(DatabaseReferenceFile file, String hashcode, boolean tight) {
+        List<MethodSignature> sigs = getSignatureLines(file.file, hashcode, tight);
+        Set<String> versions = file.getAvailableVersions();
+        if(sigs != null && versions != null) {
+            return sigs.stream().filter(m -> intersect(versions, m.getVersions())).collect(Collectors.toList());
+        }
+        return sigs;
+    }
+
     @SuppressWarnings("resource")
     public List<MethodSignature> getSignaturesForClassname(String file, String className, boolean exactName) {
         ISignatureFile sigFile = signatureFileFactory.getSignatureFile(file);
@@ -117,8 +126,8 @@ public class DatabaseReference {
     public List<MethodSignature> getSignaturesForClassname(DatabaseReferenceFile file, String className,
             boolean exactName) {
         List<MethodSignature> sigs = getSignaturesForClassname(file.file, className, exactName);
-        if(file.versions != null) {
-            Set<String> versions = file.versions.keySet();
+        Set<String> versions = file.getAvailableVersions();
+        if(versions != null) {
             return sigs.stream().filter(m -> intersect(versions, m.getVersions())).collect(Collectors.toList());
         }
         return sigs;

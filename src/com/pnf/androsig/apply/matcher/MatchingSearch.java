@@ -33,7 +33,7 @@ import com.pnfsoftware.jeb.util.format.Strings;
  *
  */
 public class MatchingSearch {
-    class InnerMatch {
+    static class InnerMatch {
         String className;
         Map<Integer, MethodSignature> classPathMethod = new HashMap<>();
         String file;
@@ -44,7 +44,10 @@ public class MatchingSearch {
         public void validateVersions() {
             DatabaseReferenceFile tmp = new DatabaseReferenceFile(file, null);
             tmp.mergeVersions(classPathMethod.values());
-            List<List<String>> preferedOrderList = fileMatches.orderVersions(tmp.versions);
+            List<List<String>> preferedOrderList = tmp.getOrderedVersions();
+            if(preferedOrderList == null || preferedOrderList.isEmpty()) {
+                return; //versionless
+            }
             versions.addAll(preferedOrderList.get(0));
             // FIXME not only the preferred order: 2 preferred orders must be equally present
             List<Integer> illegalMethods = new ArrayList<>();
@@ -98,7 +101,7 @@ public class MatchingSearch {
 
     private List<MethodSignature> getInnerClassSignatureLines(String file, String mhash, boolean tight,
             String innerClass) {
-        List<MethodSignature> sigLine = ref.getSignatureLines(file, mhash, tight);
+        List<MethodSignature> sigLine = fileMatches.getSignatureLines(ref, file, mhash, tight);
         if(sigLine != null) {
             sigLine = sigLine.stream().filter(s -> s.getCname().startsWith(innerClass)).collect(Collectors.toList());
         }
@@ -205,20 +208,23 @@ public class MatchingSearch {
                 }
 
                 for(String file: candidateFiles) {
-                    List<MethodSignature> sigLine = ref.getSignatureLines(file, mhash_tight, true);
+                    List<MethodSignature> sigLines = fileMatches.getSignatureLines(ref, file, mhash_tight, true);
+                    if(sigLines == null || sigLines.isEmpty()) {
+                        continue;
+                    }
                     if (matchedMethods.containsKey(eMethod.getIndex())) {
                         String mname = matchedMethods.get(eMethod.getIndex());
-                        sigLine = sigLine.stream().filter(s -> mname.equals(s.getMname())).collect(Collectors.toList());
-                        if(sigLine.isEmpty()) {
+                        sigLines = sigLines.stream().filter(s -> mname.equals(s.getMname())).collect(Collectors.toList());
+                        if(sigLines.isEmpty()) {
                             continue;
                         }
                     }
-                    Map<String, InnerMatch> classes = fileCandidates.get(file);
+                    Map<String, InnerMatch> classes = fileCandidates.get(file); // TODO create InnerMatch only if version is compatible
                     if(classes == null) {
                         classes = new HashMap<>();
                         fileCandidates.put(file, classes);
                     }
-                    saveTemporaryCandidate(eMethod, sigLine, firstRound, classes, file, innerLevel);
+                    saveTemporaryCandidate(eMethod, sigLines, firstRound, classes, file, innerLevel);
                 }
             }
             else if(!firstRound) {
@@ -233,12 +239,15 @@ public class MatchingSearch {
                         if(!validFiles.contains(file)) {
                             continue;
                         }
-                        List<MethodSignature> sigLine = ref.getSignatureLines(file, mhash_loose, false);
+                        List<MethodSignature> sigLines = fileMatches.getSignatureLines(ref, file, mhash_loose, false);
+                        if(sigLines == null || sigLines.isEmpty()) {
+                            continue;
+                        }
                         if(matchedMethods.containsKey(eMethod.getIndex())) {
                             String mname = matchedMethods.get(eMethod.getIndex());
-                            sigLine = sigLine.stream().filter(s -> mname.equals(s.getMname()))
+                            sigLines = sigLines.stream().filter(s -> mname.equals(s.getMname()))
                                     .collect(Collectors.toList());
-                            if(sigLine.isEmpty()) {
+                            if(sigLines.isEmpty()) {
                                 continue;
                             }
                         }
@@ -247,7 +256,7 @@ public class MatchingSearch {
                             classes = new HashMap<>();
                             fileCandidates.put(file, classes);
                         }
-                        saveTemporaryCandidate(eMethod, sigLine, firstRound, classes, file, innerLevel);
+                        saveTemporaryCandidate(eMethod, sigLines, firstRound, classes, file, innerLevel);
                     }
                 }
             }
@@ -353,7 +362,7 @@ public class MatchingSearch {
         List<MethodSignature> sigs = ref.getSignaturesForClassname(file, className, true);
         List<? extends IInstruction> instructions = eMethod.getInstructions();
         // filter abstracts or not
-        return sigs = sigs.stream().filter(s -> instructions == null ? s.getOpcount() == 0: s.getOpcount() != 0)
+        return sigs = sigs.stream().filter(s -> instructions == null ? s.isEmptyOp(): !s.isEmptyOp())
                 .collect(Collectors.toList());
     }
 
@@ -362,12 +371,12 @@ public class MatchingSearch {
         String prototypes = proto.generate(true);
         List<MethodSignature> sigs = getSignaturesForClassname(file, className, true, eMethod);
         sigs = sigs.stream().filter(s -> s.getMname().equals(methodName)).collect(Collectors.toList());
-        MethodSignature ms = findMethodName(sigs, prototypes, true, className, new ArrayList<>(), eMethod);
+        MethodSignature ms = findMethodName(sigs, prototypes, true, null, false, className, new ArrayList<>(), eMethod);
         if(ms != null) {
             return ms;
         }
         String shorty = dex.getStrings().get(proto.getShortyIndex()).getValue();
-        return findMethodName(sigs, shorty, false, className, new ArrayList<>(), eMethod);
+        return findMethodName(sigs, prototypes, false, shorty, true, className, new ArrayList<>(), eMethod);
     }
 
     public MethodSignature findMethodMatch(String file, String classPath,
@@ -387,13 +396,13 @@ public class MatchingSearch {
             String classPath, Collection<MethodSignature> alreadyProcessedMethods, IDexMethod eMethod,
             boolean allowEmptyMName) {
         MethodSignature strArray = null;
-        List<MethodSignature> sigs = ref.getSignatureLines(file, mhash_tight, true);
+        List<MethodSignature> sigs = fileMatches.getSignatureLines(ref, file, mhash_tight, true);
         if(sigs != null) {
             strArray = findMethodName(sigs, prototypes, shorty, classPath, alreadyProcessedMethods, eMethod);
         }
         if(strArray == null || (!allowEmptyMName && strArray.getMname().isEmpty())) {
             String mhash_loose = dexHashCodeList.getLooseHashcode(eMethod);
-            sigs = ref.getSignatureLines(file, mhash_loose, false);
+            sigs = fileMatches.getSignatureLines(ref, file, mhash_loose, false);
             if(sigs != null) {
                 strArray = findMethodName(sigs, prototypes, shorty, classPath, alreadyProcessedMethods, eMethod);
             }
@@ -411,33 +420,35 @@ public class MatchingSearch {
 
     MethodSignature findMethodName(List<MethodSignature> sigs, String proto, String shorty,
             String classPath, Collection<MethodSignature> alreadyProcessedMethods, IDexMethod eMethod) {
-        MethodSignature sig = findMethodName(sigs, proto, true, classPath, alreadyProcessedMethods, eMethod);
+        MethodSignature sig = findMethodName(sigs, proto, true, shorty, false, classPath, alreadyProcessedMethods,
+                eMethod);
         if(sig != null) {
             return sig;
         }
         if(!firstRound && !firstPass) {
-            return findMethodName(sigs, shorty, false, classPath, alreadyProcessedMethods, eMethod);
+            return findMethodName(sigs, proto, false, shorty, true, classPath, alreadyProcessedMethods, eMethod);
         }
         return null;
     }
 
-    List<MethodSignature> findMethodNames(List<MethodSignature> sigs, String proto,
-            boolean prototype, String classPath, Collection<MethodSignature> alreadyProcessedMethods,
+    private List<MethodSignature> findMethodNames(List<MethodSignature> sigs, String prototypes, boolean checkPrototypes,
+            String shorty, boolean checkShorty, String classPath, Collection<MethodSignature> alreadyProcessedMethods,
             IDexMethod eMethod) {
         List<MethodSignature> results = new ArrayList<>();
         proto: for(MethodSignature strArray: sigs) {
             if(!strArray.getCname().equals(classPath)) {
                 continue;
             }
-            if(!isCompatibleSignature(eMethod, proto, prototype, proto, !prototype, strArray)) {
+            if(!isCompatibleSignature(eMethod, prototypes, checkPrototypes, shorty, checkShorty, strArray)) {
                 continue;
             }
             for(MethodSignature alreadyProcessed: alreadyProcessedMethods) {
-                if((prototype ? alreadyProcessed.getPrototype().equals(strArray.getPrototype())
-                        : alreadyProcessed.getShorty().equals(strArray.getShorty()))
-                        && alreadyProcessed.getMname().equals(strArray.getMname())) {
-                    // method has already a match
-                    continue proto;
+                if (alreadyProcessed.getMname().equals(strArray.getMname())) {
+                    if ((checkPrototypes && alreadyProcessed.getPrototype().equals(strArray.getPrototype()))
+                            || checkShorty && alreadyProcessed.getShorty().equals(strArray.getShorty()))                    {
+                        // method has already a match
+                        continue proto;
+                    }
                 }
             }
             results.add(strArray);
@@ -445,15 +456,16 @@ public class MatchingSearch {
         return results;
     }
 
-    private MethodSignature findMethodName(List<MethodSignature> sigs, String proto, boolean prototype,
-            String classPath, Collection<MethodSignature> alreadyProcessedMethods, IDexMethod eMethod) {
-        List<MethodSignature> results = findMethodNames(sigs, proto, prototype, classPath, alreadyProcessedMethods,
-                eMethod);
+    private MethodSignature findMethodName(List<MethodSignature> sigs, String prototypes, boolean checkPrototypes,
+            String shorty, boolean checkShorty, String classPath, Collection<MethodSignature> alreadyProcessedMethods,
+            IDexMethod eMethod) {
+        List<MethodSignature> results = findMethodNames(sigs, prototypes, checkPrototypes, shorty, checkShorty,
+                classPath, alreadyProcessedMethods, eMethod);
         if(results.size() == 1) {
             return results.get(0);
         }
         else if(results.size() > 1) {
-            filterList(eMethod, results);
+            filterList(eMethod, prototypes, results);
             if(results.size() == 1) {
                 return results.get(0);
             }
@@ -479,7 +491,7 @@ public class MatchingSearch {
         return DexUtilLocal.isMethodCompatible(methodName, strArray.getMname());
     }
 
-    private void filterList(IDexMethod eMethod, List<MethodSignature> results) {
+    private void filterList(IDexMethod eMethod, String prototypes, List<MethodSignature> results) {
         // only on post processing
         // firstly, filter versions
         DatabaseReferenceFile f = fileMatches.getFileFromClass(eMethod.getClassType().getImplementingClass());
@@ -528,7 +540,7 @@ public class MatchingSearch {
         }
     }
 
-    static MethodSignature mergeSignature(List<MethodSignature> results) {
+    private static MethodSignature mergeSignature(List<MethodSignature> results) {
         if(results == null || results.isEmpty()) {
             return null;
         }
@@ -568,8 +580,7 @@ public class MatchingSearch {
             }
         }
         return new MethodSignature(MethodSignature.getClassname(result), MethodSignature.getMethodName(result),
-                MethodSignature.getShorty(result), MethodSignature.getPrototype(result), result[4],
-                Strings.join(";", versions));
+                MethodSignature.getShorty(result), MethodSignature.getPrototype(result), Strings.join(";", versions));
     }
 
     static List<MethodSignature> mergeSignaturesPerClass(List<MethodSignature> results) {

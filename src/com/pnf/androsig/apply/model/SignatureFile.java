@@ -48,7 +48,6 @@ public class SignatureFile implements ISignatureFile {
             return false;
         }
 
-        List<MethodSignature> mllist = new ArrayList<>();
         // Store library information
         LibraryInfo libraryInfo = new LibraryInfo();
 
@@ -88,18 +87,26 @@ public class SignatureFile implements ISignatureFile {
                     logger.warn("Invalid signature line: %s", line);
                     continue;
                 }
-                saveValue(allMetaByClassname, ml.getCname(), ml);
+                boolean found = false;
+                for(MethodSignature method: allMetaByClassname.get(ml.getCname())) {
+                    if(MethodSignature.equalsMethodSig(method, ml)) {
+                        // one MethodSignature already exists
+                        method.addRevision(ml.getOwnRevision());
+                        found = true;
+                        break;
+                    }
+                }
+                if(!found) {
+                    saveValue(allMetaByClassname, ml.getCname(), ml);
+                }
             }
 
-            mllist.add(ml);
+            // store method signatures
+            storeMethodHash(ml);
             allLibraryInfos.put(ml.getCname(), libraryInfo);
             allSignatureCount++;
         }
 
-        // store method signatures
-        for(MethodSignature ml: mllist) {
-            storeMethodHash(ml);
-        }
         return true;
     }
 
@@ -111,9 +118,32 @@ public class SignatureFile implements ISignatureFile {
     }
 
     private void storeMethodHash(MethodSignature sig) {
-        saveValue(allTightSignatures, sig.getMhash_tight(), sig);
-        saveValue(allLooseSignatures, sig.getMhash_loose(), sig);
-        saveValue(allSignaturesByClassname, sig.getCname(), sig);
+        String tight = sig.getOwnRevision().getMhash_tight();
+        String loose = sig.getOwnRevision().getMhash_loose();
+        // search for a shared sig
+        boolean found = false;
+        for(MethodSignature method: allSignaturesByClassname.get(sig.getCname())) {
+            if(MethodSignature.equalsMethodSig(method, sig)) {
+                // one MethodSignature already exists
+                method.addRevision(sig.getOwnRevision());
+                sig = method;
+                found = true;
+                break;
+            }
+        }
+        if(!found || !contains(allTightSignatures.get(tight), sig)) {
+            saveValue(allTightSignatures, tight, sig);
+        }
+        if(!found || !contains(allLooseSignatures.get(loose), sig)) {
+            saveValue(allLooseSignatures, loose, sig);
+        }
+        if(!found) {
+            saveValue(allSignaturesByClassname, sig.getCname(), sig);
+        }
+    }
+
+    private boolean contains(List<MethodSignature> list, MethodSignature sig) {
+        return list != null && list.contains(sig);
     }
 
     private static void saveValue(Map<String, List<MethodSignature>> map, String key, MethodSignature value) {
