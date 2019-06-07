@@ -97,8 +97,6 @@ public class MatchingSearch {
         this.firstPass = firstPass;
     }
 
-    // TODO filter versions on ref.getSignatureLines when possible
-
     private List<MethodSignature> getInnerClassSignatureLines(String file, String mhash, boolean tight,
             String innerClass) {
         List<MethodSignature> sigLine = fileMatches.getSignatureLines(ref, file, mhash, tight);
@@ -219,7 +217,7 @@ public class MatchingSearch {
                             continue;
                         }
                     }
-                    Map<String, InnerMatch> classes = fileCandidates.get(file); // TODO create InnerMatch only if version is compatible
+                    Map<String, InnerMatch> classes = fileCandidates.get(file);
                     if(classes == null) {
                         classes = new HashMap<>();
                         fileCandidates.put(file, classes);
@@ -651,7 +649,7 @@ public class MatchingSearch {
         Set<String> versions = new HashSet<>();
         for(MethodSignature value: results) {
             // put first as reference
-            String[] vArray = MethodSignature.getVersions(value);
+            String[] vArray = value.getVersions();
             if(vArray != null) {
                 for(String version: vArray) {
                     versions.add(version);

@@ -50,7 +50,7 @@ public class DatabaseReferenceFile {
         }
         for(MethodSignature value: values) {
             // put first as reference
-            String[] versionsArray = MethodSignature.getVersions(value);
+            String[] versionsArray = value.getVersions();
             if(versionsArray == null) {
                 // sig1 or no version specified
                 increment(versions, "all");

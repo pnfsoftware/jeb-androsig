@@ -42,7 +42,7 @@ public class MethodSignature {
     private String versions;
     /** avoid split high cpu usage */
     private String[] versionsCache;
-    private List<MethodSignatureRevision> methodSignatureVersions = new ArrayList<>();
+    private List<MethodSignatureRevision> revisions = new ArrayList<>();
 
     public static class MethodSignatureRevision {
         private int opcount;
@@ -51,12 +51,47 @@ public class MethodSignature {
         private String caller;
         private String versions;
 
+        /**
+         * Get the tight signature of the method.
+         * 
+         * @return the tight signature of the method
+         */
         public String getMhash_tight() {
             return mhash_tight;
         }
 
+        /**
+         * Get the loose signature of the method.
+         * 
+         * @return the loose signature of the method
+         */
         public String getMhash_loose() {
             return mhash_loose;
+        }
+
+        /**
+         * Get the number of instructions in the method.
+         * 
+         * @return the number of instructions in the method
+         */
+        public int getOpcount() {
+            return opcount;
+        }
+
+        /**
+         * Get the caller method list.
+         * 
+         * @return the list of all caller methods
+         */
+        public String getCaller() {
+            return caller;
+        }
+
+        public String[] getVersions() {
+            if(versions == null || versions.isEmpty()) {
+                return null;
+            }
+            return versions.split(";");
         }
 
         @Override
@@ -148,10 +183,10 @@ public class MethodSignature {
     }
 
     public boolean isEmptyOp() {
-        if(methodSignatureVersions.size() == 0) {
+        if(revisions.size() == 0) {
             return false;
         }
-        for(MethodSignatureRevision rev: methodSignatureVersions) {
+        for(MethodSignatureRevision rev: revisions) {
             if(rev.opcount != 0) {
                 return false;
             }
@@ -159,31 +194,8 @@ public class MethodSignature {
         return true;
     }
 
-    /**
-     * Get the number of instructions in the method.
-     * 
-     * @return the number of instructions in the method
-     */
-    public int getOpcount(int index) {
-        return methodSignatureVersions.get(index).opcount;
-    }
-
-    /**
-     * Get the tight signature of the method.
-     * 
-     * @return the tight signature of the method
-     */
-    public String getMhash_tight(int index) {
-        return methodSignatureVersions.get(index).mhash_tight;
-    }
-
-    /**
-     * Get the loose signature of the method.
-     * 
-     * @return the loose signature of the method
-     */
-    public String getMhash_loose(int index) {
-        return methodSignatureVersions.get(index).mhash_loose;
+    public List<MethodSignatureRevision> getRevisions() {
+        return revisions;
     }
 
     /**
@@ -192,11 +204,11 @@ public class MethodSignature {
      * @return the list of all caller methods
      */
     public boolean hasCaller() {
-        if(methodSignatureVersions.size() == 0) {
+        if(revisions.size() == 0) {
             return false;
         }
-        if(methodSignatureVersions.size() != 1) {
-            for(MethodSignatureRevision rev: methodSignatureVersions) {
+        if(revisions.size() != 1) {
+            for(MethodSignatureRevision rev: revisions) {
                 if(!Strings.isBlank(rev.caller)) {
                     return true;
                 }
@@ -205,19 +217,23 @@ public class MethodSignature {
         return false;
     }
 
+    /**
+     * @deprecated use {@link #getRevisions()} to retrieve the list of callers.
+     * @return
+     */
+    @Deprecated
     public Map<String, Integer> getTargetCaller() {
-        // TODO
         //return getTargetCaller(methodSignatureVersions.get(index).caller);
-        return getTargetCaller(methodSignatureVersions.get(0).caller);
+        return getTargetCaller(revisions.get(0).caller);
     }
 
     private String getParentField() {
-        if(methodSignatureVersions.size() == 0) {
+        if(revisions.size() == 0) {
             return null;
         }
-        String superT = methodSignatureVersions.get(0).caller;
-        if(methodSignatureVersions.size() != 1) {
-            for(MethodSignatureRevision rev: methodSignatureVersions) {
+        String superT = revisions.get(0).caller;
+        if(revisions.size() != 1) {
+            for(MethodSignatureRevision rev: revisions) {
                 if(!rev.caller.equals(superT)) {
                     return null;
                 }
@@ -229,6 +245,12 @@ public class MethodSignature {
         return superT;
     }
 
+    /**
+     * Retrieve the first metadata bound to this {@link MethodSignature} (stored in caller field).
+     * For <parent> metadata, this return the super type.
+     * 
+     * @return
+     */
     public List<String> getTargetSuperType() {
         String superT = getParentField();
         if(superT == null) {
@@ -241,6 +263,12 @@ public class MethodSignature {
         return getParentClasses(parents[0]);
     }
 
+    /**
+     * Retrieve the second metadata bound to this {@link MethodSignature} (stored in caller field).
+     * For <parent> metadata, this return the implemented interfaces.
+     * 
+     * @return
+     */
     public List<String> getTargetInterfaces() {
         String superT = getParentField();
         if(superT == null) {
@@ -347,7 +375,7 @@ public class MethodSignature {
     }
 
     public MethodSignatureRevision getOwnRevision() {
-        return methodSignatureVersions.get(0);
+        return revisions.get(0);
     }
 
     private static MethodSignatureRevision buildRevision(String[] tokens) {
@@ -371,10 +399,10 @@ public class MethodSignature {
     }
 
     public void addRevision(MethodSignatureRevision revision) {
-        if(methodSignatureVersions.contains(revision)) {
+        if(revisions.contains(revision)) {
             return;
         }
-        methodSignatureVersions.add(revision);
+        revisions.add(revision);
 
         if(versions == null) {
             versions = revision.versions;
@@ -468,10 +496,6 @@ public class MethodSignature {
             return null;
         }
         return signatureLine[8].split(";");
-    }
-
-    public static String[] getVersions(MethodSignature signatureLine) {
-        return signatureLine.getVersions();
     }
 
     public String[] toTokens() {
