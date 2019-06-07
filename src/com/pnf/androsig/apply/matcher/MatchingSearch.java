@@ -435,25 +435,37 @@ public class MatchingSearch {
             String shorty, boolean checkShorty, String classPath, Collection<MethodSignature> alreadyProcessedMethods,
             IDexMethod eMethod) {
         List<MethodSignature> results = new ArrayList<>();
-        proto: for(MethodSignature strArray: sigs) {
+        for(MethodSignature strArray: sigs) {
             if(!strArray.getCname().equals(classPath)) {
                 continue;
             }
             if(!isCompatibleSignature(eMethod, prototypes, checkPrototypes, shorty, checkShorty, strArray)) {
                 continue;
             }
-            for(MethodSignature alreadyProcessed: alreadyProcessedMethods) {
-                if (alreadyProcessed.getMname().equals(strArray.getMname())) {
-                    if ((checkPrototypes && alreadyProcessed.getPrototype().equals(strArray.getPrototype()))
-                            || checkShorty && alreadyProcessed.getShorty().equals(strArray.getShorty()))                    {
-                        // method has already a match
-                        continue proto;
-                    }
-                }
+            if(isAlreadyProcessed(strArray, alreadyProcessedMethods, checkPrototypes, checkShorty)) {
+                continue;
+            }
+            if(!checkPrototypes && !isCompatiblePrototypeSignature(eMethod, prototypes, strArray)) {
+                continue;
             }
             results.add(strArray);
         }
         return results;
+    }
+
+    private static boolean isAlreadyProcessed(MethodSignature strArray,
+            Collection<MethodSignature> alreadyProcessedMethods,
+            boolean checkPrototypes, boolean checkShorty) {
+        for(MethodSignature alreadyProcessed: alreadyProcessedMethods) {
+            if(alreadyProcessed.getMname().equals(strArray.getMname())) {
+                if((checkPrototypes && alreadyProcessed.getPrototype().equals(strArray.getPrototype()))
+                        || checkShorty && alreadyProcessed.getShorty().equals(strArray.getShorty())) {
+                    // method has already a match
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private MethodSignature findMethodName(List<MethodSignature> sigs, String prototypes, boolean checkPrototypes,
@@ -489,6 +501,73 @@ public class MatchingSearch {
                     strArray.getPrototype());
         }
         return DexUtilLocal.isMethodCompatible(methodName, strArray.getMname());
+    }
+
+    private boolean isCompatiblePrototypeSignature(IDexMethod eMethod, String prototypes, MethodSignature strArray) {
+        String returnVal1 = prototypes.substring(prototypes.indexOf(")") + 1);
+        String originalReturnVal = strArray.getPrototype().substring(strArray.getPrototype().indexOf(")") + 1);
+        if(!isCompatible(returnVal1, originalReturnVal)) {
+            return false;
+        }
+        String params1 = DexUtilLocal.extractParamsFromSignature(prototypes);
+        String originalParams = DexUtilLocal.extractParamsFromSignature(strArray.getPrototype());
+        List<String> paramList = DexUtilLocal.parseSignatureParameters(params1);
+        List<String> originalParamList = DexUtilLocal.parseSignatureParameters(originalParams);
+        for(int i = 0; i < paramList.size(); i++) {
+            if(!isCompatible(paramList.get(i), originalParamList.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isCompatible(String unstable, String original) {
+        if(unstable.equals(original)) {
+            return true;
+        }
+        // array comparison
+        do {
+            boolean array1 = unstable.startsWith("[");
+            boolean array2 = original.startsWith("[");
+            if(array1 != array2) {
+                return false;
+            }
+            if(!array1) {
+                break;
+            }
+            unstable = unstable.substring(1);
+            original = original.substring(1);
+        }
+        while(true);
+
+        // same type: not verified by shorty (because array is an Object Type, a type comparison of 2 objects may be different)
+        if(unstable.charAt(0) != original.charAt(0)) {
+            return false;
+        }
+        if(unstable.charAt(0) != 'L') {
+            return true;
+        }
+
+        // are type compatibles?
+        if(isJavaPlatformClass(original) || isAndroidPlatformClass(original)) {
+            return false; // names should be equal
+        }
+        return true;
+    }
+
+    private boolean isJavaPlatformClass(String original) {
+        return original.startsWith("Ljava/");
+    }
+
+    private boolean isAndroidPlatformClass(String original) {
+        if(!original.startsWith("Landroid/")) {
+            return false;
+        }
+        if(original.startsWith("Landroid/support/") || original.startsWith("Landroid/arch/")
+                || original.startsWith("Landroid/databinding/") || original.startsWith("Landroid/car/")) {
+            return false;
+        }
+        return true;
     }
 
     private void filterList(IDexMethod eMethod, String prototypes, List<MethodSignature> results) {
