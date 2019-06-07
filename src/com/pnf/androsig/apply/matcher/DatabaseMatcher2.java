@@ -646,7 +646,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         }
 
         if(temp1.size() != 0) {
-            if(f(unit, eClass, temp1)) {
+            String errorMessage = f(unit, eClass, temp1);
+            if(errorMessage == null) {
                 boolean res = fileMatches.addVersions(innerMatch.file, innerMatch.classPathMethod.values());
                 if(!res) {
                     return false;
@@ -684,7 +685,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 return true;
             }
             else {
-                logger.debug("Can not validate candidate for %s: user threshold not reached", innerMatch.className);
+                logger.info("Can not validate candidate for %s: %s", innerMatch.className, errorMessage);
                 for(int e: temp1) {
                     matchedMethods.remove(e);
                     matchedSigMethods.remove(e);
@@ -695,7 +696,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
     }
 
     @Override
-    public boolean f(IDexUnit unit, IDexClass eClass, List<Integer> matchedMethods) {
+    public String f(IDexUnit unit, IDexClass eClass, List<Integer> matchedMethods) {
         double totalInstrus = 0;
         double matchedInstrus = 0;
 
@@ -711,7 +712,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         }
         else {
             if(methods == null || methods.size() == 0) {
-                return false;
+                return "No method";
             }
             for(IDexMethod m: methods) {
                 if(!m.isInternal()) {
@@ -739,13 +740,15 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             // possible false positive: same constructor/super constructor only
             String name = methods.get(0).getName(true);
             if(name.equals("<init>") || name.equals("<clinit>")) {
-                return matchedInstrus > 20; // artificial metrics
+                return matchedInstrus > params.standaloneConstructorMethodSizeBar ? null
+                        : "Only simple constructor match found";
             }
         }
-        if(matchedInstrus / totalInstrus <= params.matchedInstusPercentageBar) {
-            return false;
+        double cov = matchedInstrus / totalInstrus;
+        if(cov <= params.matchedInstusPercentageBar) {
+            return Strings.f("User threshold not reached: %.2f", cov);
         }
-        return true;
+        return null;
     }
 
     @Override

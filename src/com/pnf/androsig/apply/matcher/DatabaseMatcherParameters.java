@@ -22,6 +22,7 @@ public class DatabaseMatcherParameters {
     // Parameters
     public int methodSizeBar = 0; // will skip method if its instruction size is no great than methodSizeBar
     public double matchedInstusPercentageBar = 0; // will skip the class if (total matched instructions / total instructions) is no greater than matchedMethodsPercentageBar
+    public int standaloneConstructorMethodSizeBar = 20; // will skip class if only constructor is found with less than standaloneConstructorMethodSizeBar
     public boolean useCallerList = false;
     public boolean useReverseMatching = false;
     public int reverseMatchingClassThreshold = 10; // number of minimum class match required to enable reverse matching

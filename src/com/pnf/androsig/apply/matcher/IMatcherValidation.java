@@ -21,7 +21,7 @@ interface IMatcherValidation {
      * @param unit
      * @param eClass
      * @param matchedMethods
-     * @return
+     * @return error message, null if successful
      */
-    boolean f(IDexUnit unit, IDexClass eClass, List<Integer> matchedMethods);
+    String f(IDexUnit unit, IDexClass eClass, List<Integer> matchedMethods);
 }
