@@ -126,6 +126,16 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                     cl.getSignature(false), cl.getSignature(true));
             return;
         }
+        if(classname.startsWith("Landroid/support/") && classname.contains("/internal")) {
+            // remove internal package
+            String original = cl.getSignature(false);
+            if(original.startsWith("Landroid/support/") && classname.contains("/internal")) {
+                // keep as it
+            }
+            else {
+                classname = classname.replace("/internal", "");
+            }
+        }
         matchedClasses.put(cl.getIndex(), classname);
         if(!safe) {
             fileMatches.removeClassFiles(cl);
