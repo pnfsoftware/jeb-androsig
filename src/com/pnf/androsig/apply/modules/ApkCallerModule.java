@@ -10,13 +10,13 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import com.pnf.androsig.apply.matcher.ContextMatches;
+import com.pnf.androsig.apply.matcher.DatabaseReferenceFile;
 import com.pnf.androsig.apply.matcher.FileMatches;
 import com.pnf.androsig.apply.matcher.IDatabaseMatcher;
-import com.pnf.androsig.apply.matcher.IAndrosigModule;
 import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.DexHashcodeList;
 import com.pnf.androsig.apply.model.MethodSignature;
@@ -31,12 +31,7 @@ import com.pnfsoftware.jeb.util.format.Strings;
  * @author Cedric Lucas
  *
  */
-public class ApkCallerModule implements IAndrosigModule {
-
-    private IDatabaseMatcher dbMatcher;
-    private ContextMatches contextMatches = new ContextMatches();
-    private FileMatches fileMatches = new FileMatches();
-    private DatabaseReference ref;
+public class ApkCallerModule extends AbstractModule {
 
     private Map<Integer, MethodSignature> matchedSigMethods;
 
@@ -44,10 +39,7 @@ public class ApkCallerModule implements IAndrosigModule {
 
     public ApkCallerModule(IDatabaseMatcher dbMatcher, ContextMatches contextMatches, FileMatches fileMatches,
             DatabaseReference ref, Map<Integer, MethodSignature> matchedSigMethods) {
-        this.dbMatcher = dbMatcher;
-        this.contextMatches = contextMatches;
-        this.fileMatches = fileMatches;
-        this.ref = ref;
+        super(dbMatcher, contextMatches, fileMatches, ref);
         this.matchedSigMethods = matchedSigMethods;
     }
 
@@ -112,10 +104,10 @@ public class ApkCallerModule implements IAndrosigModule {
         if(cl == null) {
             return null;
         }
-        String f = fileMatches.getMatchedClassFile(cl, value.getCname(), ref);
+        DatabaseReferenceFile f = getFileFromClass(cl);
         if(f != null) {
             List<MethodSignature> candidates = new ArrayList<>();
-            List<MethodSignature> compatibleSignatures = ref.getSignaturesForClassname(f, value.getCname(), true);
+            List<MethodSignature> compatibleSignatures = getSignaturesForClassname(f, value.getCname());
             for(MethodSignature sig: compatibleSignatures) {
                 if(sig.getMname().equals(value.getMname()) && sig.getPrototype().equals(value.getPrototype())
                         && sig.hasCaller()) {
@@ -129,7 +121,6 @@ public class ApkCallerModule implements IAndrosigModule {
             if(candidates.size() == 1) {
                 return candidates.get(0).getTargetCaller();
             }
-            candidates = fileMatches.filterMatchingSignatures(f, candidates);
             Map<String, Integer> targetCaller = null;
             for(MethodSignature sig: candidates) {
                 if(targetCaller == null) {
@@ -157,7 +148,7 @@ public class ApkCallerModule implements IAndrosigModule {
         String[] expectedTokens = expected.split("->|\\(|\\)"); //0: classname, 1: methodname, 2: arguments, 3: return
         String[] currentTokens = current.split("->|\\(|\\)");
         if(expected.equals(current)) {
-            contextMatches.saveMethodMatch(m.getIndex(), expectedTokens[1]);
+            saveMethodMatch(m.getIndex(), expectedTokens[1]);
             return;
         }
         List<String> expectedParams = DexUtilLocal.parseSignatureParameters(expectedTokens[2]);
@@ -174,15 +165,15 @@ public class ApkCallerModule implements IAndrosigModule {
     }
 
     private void applyClassMatching(String[] expectedTokens, String[] currentTokens) {
-        contextMatches.saveClassMatch(currentTokens[0], expectedTokens[0], expectedTokens[0], expectedTokens[1]);
-        contextMatches.saveClassMatch(currentTokens[3], expectedTokens[3], expectedTokens[0], expectedTokens[1]);
+        saveClassMatch(currentTokens[0], expectedTokens[0], expectedTokens[0], expectedTokens[1]);
+        saveClassMatch(currentTokens[3], expectedTokens[3], expectedTokens[0], expectedTokens[1]);
     }
 
     private void applyMethodMatching(IDexMethod m, String cname, String name, List<String> expectedParams,
             List<String> currentParams) {
-        contextMatches.saveMethodMatch(m.getIndex(), name);
+        saveMethodMatch(m.getIndex(), name);
         for(int i = 0; i < expectedParams.size(); i++) {
-            contextMatches.saveClassMatch(currentParams.get(i), expectedParams.get(i), cname, name);
+            saveClassMatch(currentParams.get(i), expectedParams.get(i), cname, name);
         }
     }
 
@@ -287,15 +278,14 @@ public class ApkCallerModule implements IAndrosigModule {
             // apply if some
             for(int i = 0; i < mergedParams.size(); i++) {
                 if(!Strings.isBlank(mergedParams.get(i))) {
-                    contextMatches.saveClassMatch(mergedParams.get(i), expectedParams.get(i), expectedTokens[0],
-                            expectedTokens[1]);
+                    saveClassMatch(mergedParams.get(i), expectedParams.get(i), expectedTokens[0], expectedTokens[1]);
                 }
             }
             if(!Strings.isBlank(mergedTokens[0])) {
-                contextMatches.saveClassMatch(mergedTokens[0], expectedTokens[0], expectedTokens[0], expectedTokens[1]);
+                saveClassMatch(mergedTokens[0], expectedTokens[0], expectedTokens[0], expectedTokens[1]);
             }
             if(!Strings.isBlank(mergedTokens[3])) {
-                contextMatches.saveClassMatch(mergedTokens[3], expectedTokens[3], expectedTokens[0], expectedTokens[1]);
+                saveClassMatch(mergedTokens[3], expectedTokens[3], expectedTokens[0], expectedTokens[1]);
             }
         }
     }
@@ -443,7 +433,7 @@ public class ApkCallerModule implements IAndrosigModule {
                         if(clParentExp != null) {
                             return false; // not the same class after naming is stable
                         }
-                        else if(dbMatcher.getMatchedClasses().get(clParent.getIndex()) != null) {
+                        else if(hasMatchedClass(clParent.getIndex())) {
                             return false; // renaming already performed (match another class)
                         }
                     }
@@ -452,7 +442,7 @@ public class ApkCallerModule implements IAndrosigModule {
                     expectedIdx = expected.indexOf("$", expectedIdx + 1);
                 }
                 // only compatible if no renaming was done (otherwise, expect same type)
-                return dbMatcher.getMatchedClasses().get(cl.getIndex()) == null;
+                return !hasMatchedClass(cl.getIndex());
             }
         }
         else {

@@ -416,7 +416,7 @@ public class MatchingSearch {
         return findMethodName(sigs, prototypes, shorty, classPath, alreadyProcessedMethods, eMethod);
     }
 
-    MethodSignature findMethodName(List<MethodSignature> sigs, String proto, String shorty,
+    public MethodSignature findMethodName(List<MethodSignature> sigs, String proto, String shorty,
             String classPath, Collection<MethodSignature> alreadyProcessedMethods, IDexMethod eMethod) {
         MethodSignature sig = findMethodName(sigs, proto, true, shorty, false, classPath, alreadyProcessedMethods,
                 eMethod);
@@ -429,9 +429,9 @@ public class MatchingSearch {
         return null;
     }
 
-    private List<MethodSignature> findMethodNames(List<MethodSignature> sigs, String prototypes, boolean checkPrototypes,
-            String shorty, boolean checkShorty, String classPath, Collection<MethodSignature> alreadyProcessedMethods,
-            IDexMethod eMethod) {
+    private static List<MethodSignature> findMethodNames(List<MethodSignature> sigs, String prototypes,
+            boolean checkPrototypes, String shorty, boolean checkShorty, String classPath,
+            Collection<MethodSignature> alreadyProcessedMethods, IDexMethod eMethod) {
         List<MethodSignature> results = new ArrayList<>();
         for(MethodSignature strArray: sigs) {
             if(!strArray.getCname().equals(classPath)) {
@@ -501,7 +501,8 @@ public class MatchingSearch {
         return DexUtilLocal.isMethodCompatible(methodName, strArray.getMname());
     }
 
-    private boolean isCompatiblePrototypeSignature(IDexMethod eMethod, String prototypes, MethodSignature strArray) {
+    private static boolean isCompatiblePrototypeSignature(IDexMethod eMethod, String prototypes,
+            MethodSignature strArray) {
         String returnVal1 = prototypes.substring(prototypes.indexOf(")") + 1);
         String originalReturnVal = strArray.getPrototype().substring(strArray.getPrototype().indexOf(")") + 1);
         if(!isCompatible(returnVal1, originalReturnVal)) {
@@ -519,7 +520,7 @@ public class MatchingSearch {
         return true;
     }
 
-    private boolean isCompatible(String unstable, String original) {
+    private static boolean isCompatible(String unstable, String original) {
         if(unstable.equals(original)) {
             return true;
         }
@@ -553,11 +554,11 @@ public class MatchingSearch {
         return true;
     }
 
-    private boolean isJavaPlatformClass(String original) {
+    private static boolean isJavaPlatformClass(String original) {
         return original.startsWith("Ljava/");
     }
 
-    private boolean isAndroidPlatformClass(String original) {
+    private static boolean isAndroidPlatformClass(String original) {
         if(!original.startsWith("Landroid/")) {
             return false;
         }

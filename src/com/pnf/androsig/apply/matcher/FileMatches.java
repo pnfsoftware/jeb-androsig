@@ -170,27 +170,6 @@ public class FileMatches {
         return -1;
     }
 
-    public List<MethodSignature> filterMatchingSignatures(String f, List<MethodSignature> candidates) {
-        List<List<String>> preferedOrder = getOrderedVersions(f);
-        List<MethodSignature> newCandidates = new ArrayList<>();
-        if(preferedOrder == null || preferedOrder.isEmpty()) {
-            return newCandidates;
-        }
-        for(MethodSignature sig: candidates) {
-            for(String prefered: preferedOrder.get(0)) {
-                String[] versionsArray = sig.getVersions();
-                if(versionsArray == null) {
-                    return candidates;
-                }
-                if(Arrays.asList(versionsArray).contains(prefered)) {
-                    newCandidates.add(sig);
-                    break; // no need to check other versions
-                }
-            }
-        }
-        return newCandidates;
-    }
-
     public List<MethodSignature> getSignatureLines(DatabaseReference ref, String file, String hashcode, boolean tight) {
         if(!usedSigFiles.containsKey(file)) {
             return ref.getSignatureLines(file, hashcode, tight);

@@ -35,22 +35,14 @@ import com.pnfsoftware.jeb.util.format.Strings;
  * @author Cedric Lucas
  *
  */
-public class ReverseMatchingModule implements IAndrosigModule {
-
-    private IDatabaseMatcher dbMatcher;
-    private ContextMatches contextMatches = new ContextMatches();
-    private FileMatches fileMatches = new FileMatches();
-    private DatabaseReference ref;
+public class ReverseMatchingModule extends AbstractModule {
 
     private DatabaseMatcherParameters params;
     private List<IAndrosigModule> modules;
 
     public ReverseMatchingModule(IDatabaseMatcher dbMatcher, ContextMatches contextMatches, FileMatches fileMatches,
             DatabaseReference ref, DatabaseMatcherParameters params, List<IAndrosigModule> modules) {
-        this.dbMatcher = dbMatcher;
-        this.contextMatches = contextMatches;
-        this.fileMatches = fileMatches;
-        this.ref = ref;
+        super(dbMatcher, contextMatches, fileMatches, ref);
         this.params = params;
         this.modules = modules;
     }
@@ -77,7 +69,7 @@ public class ReverseMatchingModule implements IAndrosigModule {
                     Map<Integer, MethodSignature> current = new HashMap<>();
                     long t0 = System.currentTimeMillis();
                     for(IDexClass eClass: classes) {
-                        if(dbMatcher.getMatchedClasses().containsKey(eClass.getIndex())) {
+                        if(hasMatchedClass(eClass.getIndex())) {
                             continue;
                         }
                         // candidate?
@@ -141,7 +133,7 @@ public class ReverseMatchingModule implements IAndrosigModule {
                         }
                     }
                     if(nbObjParam >= params.reverseMatchingComplexObjectThreshold) {
-                        contextMatches.saveClassMatchInherit(classCandidate.getSignature(true), cl.classname, "");
+                        saveClassMatchInherit(classCandidate.getSignature(true), cl.classname, "");
                     }
                 }
             }
@@ -176,10 +168,10 @@ public class ReverseMatchingModule implements IAndrosigModule {
     }
 
     private ClassInfo buildClassInfo(DatabaseReferenceFile refFile, String classname) {
-        if(dbMatcher.getMatchedClasses().containsValue(classname)) {
+        if(getMatchedClasses().containsValue(classname)) {
             return null;
         }
-        List<MethodSignature> signatures = ref.getSignaturesForClassname(refFile, classname, true);
+        List<MethodSignature> signatures = getSignaturesForClassname(refFile, classname);
         int distinctSignaturesSize = 0;
         if(signatures.size() < params.reverseMatchingMethodThreshold
                 || (distinctSignaturesSize = getDistinctSignaturesSize(
@@ -195,8 +187,8 @@ public class ReverseMatchingModule implements IAndrosigModule {
 
     private Map<DatabaseReferenceFile, List<ClassInfo>> getMostUsedFiles() {
         Map<DatabaseReferenceFile, Integer> fileOccurences = new HashMap<>();
-        for(Entry<Integer, String> entry: dbMatcher.getMatchedClasses().entrySet()) {
-            DatabaseReferenceFile refFile = fileMatches.getFileFromClassId(entry.getKey());
+        for(Entry<Integer, String> entry: getMatchedClasses().entrySet()) {
+            DatabaseReferenceFile refFile = getFileFromClassId(entry.getKey());
             if(refFile != null) {
                 Integer occ = fileOccurences.get(refFile);
                 occ = occ == null ? 1: occ + 1;
