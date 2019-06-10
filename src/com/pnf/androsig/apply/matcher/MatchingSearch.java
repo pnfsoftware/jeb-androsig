@@ -81,12 +81,13 @@ public class MatchingSearch {
     private List<IAndrosigModule> modules;
     private boolean firstRound;
     private boolean firstPass;
+    private boolean safe;
 
     private Map<String, Map<String, InnerMatch>> fileCandidates = new HashMap<>(); // file -> (classname->count)
 
     public MatchingSearch(IDexUnit dex, DexHashcodeList dexHashCodeList, DatabaseReference ref,
             DatabaseMatcherParameters params, FileMatches fileMatches, List<IAndrosigModule> modules,
-            boolean firstRound, boolean firstPass) {
+            boolean firstRound, boolean firstPass, boolean safe) {
         this.dex = dex;
         this.dexHashCodeList = dexHashCodeList;
         this.ref = ref;
@@ -95,6 +96,7 @@ public class MatchingSearch {
         this.modules = modules;
         this.firstRound = firstRound;
         this.firstPass = firstPass;
+        this.safe = safe;
     }
 
     private List<MethodSignature> getInnerClassSignatureLines(String file, String mhash, boolean tight,
@@ -478,6 +480,20 @@ public class MatchingSearch {
             filterList(eMethod, prototypes, results);
             if(results.size() == 1) {
                 return results.get(0);
+            }
+            if(!firstRound && !firstPass && checkPrototypes && safe) {
+                // kind of last resort when no signature match.
+                // in addition, this happens quite often when implementing/extending public api
+                // it allows other methods with same signature to be distinguished in some cases
+                String methodName = eMethod.getName(true);
+                List<MethodSignature> sameNames = results.stream().filter(m -> m.getMname().equals(methodName))
+                        .collect(Collectors.toList());
+                if(!sameNames.isEmpty()) {
+                    if(sameNames.size() == 1) {
+                        return sameNames.get(0);
+                    }
+                    results = sameNames;
+                }
             }
             return MatchingSearch.mergeSignature(results);
         }

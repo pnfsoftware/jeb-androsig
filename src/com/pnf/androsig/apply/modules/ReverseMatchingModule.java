@@ -58,7 +58,7 @@ public class ReverseMatchingModule extends AbstractModule {
             // search in used files if there are matching class that can apply to current project
             Map<DatabaseReferenceFile, List<ClassInfo>> mostUsed = getMostUsedFiles();
             MatchingSearch mSearch = new MatchingSearch(dex, dexHashCodeList, ref, params, fileMatches, modules,
-                    firstRound, false);
+                    firstRound, false, true);
             List<? extends IDexClass> classes = dex.getClasses();
             for(Entry<DatabaseReferenceFile, List<ClassInfo>> entry: mostUsed.entrySet()) {
                 // is there a class in project that match?
