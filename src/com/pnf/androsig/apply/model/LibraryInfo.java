@@ -17,6 +17,8 @@
  */
 package com.pnf.androsig.apply.model;
 
+import java.util.Set;
+
 /**
  * Definition of one library signature info.
  * 
@@ -26,6 +28,7 @@ package com.pnf.androsig.apply.model;
 public class LibraryInfo {
     private String author;
     private int version;
+    private Set<String> versions;
     private String libName;
 
     /**
@@ -54,12 +57,20 @@ public class LibraryInfo {
         return version;
     }
 
+    public Set<String> getVersions() {
+        return versions;
+    }
+
     /**
      * Set the version of the library signature file.
      * 
      */
     public void setVersion(int version) {
         this.version = version;
+    }
+
+    public void setVersions(Set<String> versions) {
+        this.versions = versions;
     }
 
     /**

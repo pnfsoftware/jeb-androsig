@@ -146,9 +146,12 @@ public class DatabaseReference {
     }
 
     @SuppressWarnings("resource")
-    public Map<String, LibraryInfo> getAllLibraryInfos(String file) {
+    public LibraryInfo getLibraryInfos(String file, String className) {
         ISignatureFile sigFile = signatureFileFactory.getSignatureFile(file);
-        return sigFile.getAllLibraryInfos();
+        if(className != null && !sigFile.hasSignaturesForClassname(className)) {
+            return null;
+        }
+        return sigFile.getLibraryInfos();
     }
 
     public Map<String, ISignatureFile> getLoadedSignatureFiles() {

@@ -1057,7 +1057,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             DatabaseReferenceFile file = fileMatches.getFileFromClassId(entry.getKey());
             if(file == null) {
                 for(String used: fileMatches.getSignatureFileUsed()) {
-                    LibraryInfo res = ref.getAllLibraryInfos(used).get(entry.getValue());
+                    LibraryInfo res = ref.getLibraryInfos(used, entry.getValue());
                     if(res != null) {
                         libs.put(entry.getValue(), res);
                         break;
@@ -1065,7 +1065,10 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 }
             }
             else {
-                LibraryInfo res = ref.getAllLibraryInfos(file.file).get(entry.getValue());
+                LibraryInfo res = ref.getLibraryInfos(file.file, entry.getValue());
+                if(file.getMergedVersions() != null && res.getVersions() == null) {
+                    res.setVersions(file.getReducedVersions());
+                }
                 libs.put(entry.getValue(), res);
             }
         }

@@ -23,7 +23,8 @@ import com.pnfsoftware.jeb.util.logging.GlobalLog;
 import com.pnfsoftware.jeb.util.logging.ILogger;
 
 /**
- * Represent a list of signatures. It may represent one file or several (depends on caller).
+ * Represent a list of signatures. It should represent one file (representation of several may lead
+ * to memory issues).
  * 
  * @author Ruoxiao Wang, Cedric Lucas
  *
@@ -35,10 +36,13 @@ public class SignatureFile implements ISignatureFile {
     private Map<String, List<MethodSignature>> allLooseSignatures = new HashMap<>();
     private Map<String, List<MethodSignature>> allSignaturesByClassname = new HashMap<>();
     private Map<String, List<MethodSignature>> allMetaByClassname = new HashMap<>();
-    private Map<String, LibraryInfo> allLibraryInfos = new HashMap<>();
+    private LibraryInfo libraryInfos;
     private int allSignatureCount = 0;
 
     public boolean loadSignatures(File sigFile) {
+        if(libraryInfos != null) {
+            throw new RuntimeException("Can only load one signature file");
+        }
         int version = 0;
         String libname = "Unknown library code";
         String author = "Unknown author";
@@ -49,7 +53,7 @@ public class SignatureFile implements ISignatureFile {
         }
 
         // Store library information
-        LibraryInfo libraryInfo = new LibraryInfo();
+        libraryInfos = new LibraryInfo();
 
         for(String line: lines) {
             line = line.trim();
@@ -63,19 +67,19 @@ public class SignatureFile implements ISignatureFile {
                 String value = checkMarker(line, "version");
                 if(value != null) {
                     version = Conversion.stringToInt(value);
-                    libraryInfo.setVersion(version);
+                    libraryInfos.setVersion(version);
                 }
 
                 value = checkMarker(line, "libname");
                 if(value != null) {
                     libname = value;
-                    libraryInfo.setLibName(libname);
+                    libraryInfos.setLibName(libname);
                 }
 
                 value = checkMarker(line, "author");
                 if(value != null) {
                     author = value;
-                    libraryInfo.setAuthor(author);
+                    libraryInfos.setAuthor(author);
                 }
                 continue;
             }
@@ -103,7 +107,6 @@ public class SignatureFile implements ISignatureFile {
 
             // store method signatures
             storeMethodHash(ml);
-            allLibraryInfos.put(ml.getCname(), libraryInfo);
             allSignatureCount++;
         }
 
@@ -211,13 +214,18 @@ public class SignatureFile implements ISignatureFile {
     }
 
     @Override
-    public Map<String, LibraryInfo> getAllLibraryInfos() {
-        return allLibraryInfos;
+    public LibraryInfo getLibraryInfos() {
+        return libraryInfos;
     }
 
     @Override
     public int getAllSignatureCount() {
         return allSignatureCount;
+    }
+
+    @Override
+    public boolean hasSignaturesForClassname(String className) {
+        return allSignaturesByClassname.containsKey(className);
     }
 
     @Override

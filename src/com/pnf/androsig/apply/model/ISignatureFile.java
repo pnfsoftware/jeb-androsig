@@ -7,7 +7,6 @@ package com.pnf.androsig.apply.model;
 
 import java.io.Closeable;
 import java.util.List;
-import java.util.Map;
 
 /**
  * @author Cedric Lucas
@@ -15,11 +14,13 @@ import java.util.Map;
  */
 public interface ISignatureFile extends Closeable {
 
-    Map<String, LibraryInfo> getAllLibraryInfos();
+    LibraryInfo getLibraryInfos();
 
     List<MethodSignature> getTightSignatures(String hashcode);
 
     List<MethodSignature> getLooseSignatures(String hashcode);
+
+    boolean hasSignaturesForClassname(String className);
 
     List<MethodSignature> getSignaturesForClassname(String className, boolean exactName);
 

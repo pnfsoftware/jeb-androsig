@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.TreeMap;
 
 import com.pnf.androsig.apply.model.DatabaseReference;
@@ -26,6 +27,7 @@ import com.pnfsoftware.jeb.core.units.code.IInstruction;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
+import com.pnfsoftware.jeb.util.format.Strings;
 import com.pnfsoftware.jeb.util.logging.GlobalLog;
 import com.pnfsoftware.jeb.util.logging.ILogger;
 
@@ -141,66 +143,73 @@ public class ReportHandler {
         // Library distribution
         
         Map<String, LibraryInfo> libraryInfos = struInfo.getDbMatcher().getSignatureMetrics().getAllLibraryInfos();
-        Map<String, Integer> libraryMap = new HashMap<>();
+        Map<LibraryInfo, Integer> libraryMap = new HashMap<>();
         for(String s : matchedClasses.values()) {
             LibraryInfo lib = libraryInfos.get(s);
             if(lib == null) {
                 // reference to external class (not necessary in libs), matched by param matcher for example
                 continue;
             }
-            String libname = lib.getLibName();
-            Integer count = libraryMap.get(libname);
+            Integer count = libraryMap.get(lib);
             if(count == null) {
                 count = 0;
             }
-            libraryMap.put(libname, count + 1);
+            libraryMap.put(lib, count + 1);
         }
         
-        ArrayList<Map.Entry<String, Integer>> pairs = new ArrayList<>(libraryMap.entrySet());
-        Collections.sort(pairs, new Comparator<Map.Entry<String, Integer>>() {
+        List<Map.Entry<LibraryInfo, Integer>> pairs = new ArrayList<>(libraryMap.entrySet());
+        Collections.sort(pairs, new Comparator<Map.Entry<LibraryInfo, Integer>>() {
             @Override
-            public int compare(Map.Entry<String, Integer> a, Map.Entry<String, Integer> b) {
+            public int compare(Map.Entry<LibraryInfo, Integer> a, Map.Entry<LibraryInfo, Integer> b) {
                 return Integer.parseInt(b.getValue().toString()) - Integer.parseInt(a.getValue().toString());
             }
         });
         
-        
+        StringBuilder stb = new StringBuilder();
+        stb.append("*************** Summary ***************\n");
+        stb.append("Total number of signature files: ").append(allSignatureFileCount).append("\n");
+        stb.append("Total number of signatures: ").append(allSignatureCount).append("\n");
+        stb.append("Total number of used signature files: ").append(allUsedSignatureFileCount).append("\n");
+        stb.append("Total number of classes in app: ").append(allClassCount).append("\n");
+        stb.append("*************** Details ***************\n");
+        stb.append("Total number of matched classes: ").append(allMatchedClassCount).append(" (")
+                .append(matchedClassCountP).append("%)\n");
+        stb.append("Total number of matched methods: ").append(allMatchedMethodCount).append("\n");
+        stb.append("Total number of interfaces and empty classes: ").append(allInterfaceAndEmptyClassCount).append(" (")
+                .append(interfaceAndEmptyClassCountP).append("%)\n");
+        stb.append("Total number of unmatched classes: ").append(allUnmatchedClassCount)
+                .append(" (").append(unmatchedClassCountP).append("%)\n");
+        stb.append("*************** Library Distribution ***************\n");
+        List<String> pairsUnVersionned = new ArrayList<>();
+        int maxLength = 0;
+        for(Entry<LibraryInfo, Integer> each: pairs) {
+            String libLine = each.getKey().getLibName() + ": " + each.getValue() + " ("
+                    + df.format((each.getValue() * 100.0) / allClassCount) + "%)";
+            maxLength = libLine.length() > maxLength ? libLine.length(): maxLength;
+            pairsUnVersionned.add(libLine);
+        }
+        for(int i = 0; i < pairs.size(); i++) {
+            Entry<LibraryInfo, Integer> libInfo = pairs.get(i);
+            String libLine = pairsUnVersionned.get(i);
+            stb.append(libLine);
+            Set<String> versionSet = libInfo.getKey().getVersions();
+            if(versionSet != null && !versionSet.isEmpty()) {
+                stb.append(Strings.spaces(maxLength - libLine.length() + 4));
+                stb.append("versions: ").append(Strings.join(", ", versionSet));
+            }
+            stb.append("\n");
+        }
+        String reportContent = stb.toString();
         File report = new File(System.getProperty("java.io.tmpdir"), "androsig-report.txt");
         try(BufferedWriter writer = new BufferedWriter(new FileWriter(report));) {
-            writer.write("*************** Summary ***************\n");
-            writer.write("Total number of signature files: " + allSignatureFileCount + "\n");
-            writer.write("Total number of signatures: " + allSignatureCount + "\n");
-            writer.write("Total number of used signature files: " + allUsedSignatureFileCount + "\n");
-            writer.write("Total number of classes in app: " + allClassCount + "\n");
-            writer.write("*************** Details ***************\n");   
-            writer.write("Total number of matched classes: " + allMatchedClassCount + " (" + matchedClassCountP + "%)\n");
-            writer.write("Total number of matched methods: " + allMatchedMethodCount + "\n");
-            writer.write("Total number of interfaces and empty classes: " + allInterfaceAndEmptyClassCount + " (" + interfaceAndEmptyClassCountP + "%)\n");
-            writer.write("Total number of unmatched classes: " + allUnmatchedClassCount + " (" + unmatchedClassCountP + "%)\n");
-            writer.write("*************** Library Distribution ***************\n");
-            for(Map.Entry<String, Integer> each : pairs) {
-                writer.write(each.getKey() + ": " + each.getValue() + " (" + df.format((each.getValue() * 100.0) / allClassCount) + "%)\n");
-            }
+            writer.write(reportContent);
         }
         catch(IOException e) {
             logger.error(e.toString());
         }
         
         // Output to console
-        logger.info("*************** Summary ***************");
-        logger.info("Total number of signature files: " + allSignatureFileCount);
-        logger.info("Total number of signatures: " + allSignatureCount);
-        logger.info("Total number of used signature files: " + allUsedSignatureFileCount);
-        logger.info("Total number of classes in app: " + allClassCount);
-        logger.info("*************** Details ***************");   
-        logger.info("Total number of matched classes: " + allMatchedClassCount + " (" + matchedClassCountP + "%)");
-        logger.info("Total number of matched methods: " + allMatchedMethodCount);
-        logger.info("Total number of interfaces and empty classes: " + allInterfaceAndEmptyClassCount + " (" + interfaceAndEmptyClassCountP + "%)");
-        logger.info("Total number of unmatched classes: " + allUnmatchedClassCount + " (" + unmatchedClassCountP + "%)");
-        logger.info("*************** Library Distribution ***************");
-        for(Map.Entry<String, Integer> each : pairs) {
-            logger.info(each.getKey() + ": " + each.getValue() + " (" + df.format((each.getValue() * 100.0) / allClassCount) + "%)");
-        }
+        logger.info(reportContent);
     }
     
     private static boolean isSamePackage(String c1, String c2, int depth) {

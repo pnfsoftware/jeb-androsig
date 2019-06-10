@@ -51,20 +51,23 @@ public class IndexedSignatureFile implements ISignatureFile {
     private Map<String, List<MethodSignature>> signaturesByClassname = new HashMap<>();
     private Map<String, List<MethodSignature>> signaturesByMethod = new HashMap<>();
     private Map<String, List<MethodSignature>> metaByClassname = new HashMap<>();
-    private Map<String, LibraryInfo> allLibraryInfos = new HashMap<>();
+    private LibraryInfo libraryInfo;
     private int allSignatureCount = 0;
 
     private File sigFile;
     private RandomAccessFile f = null;
 
     public boolean loadSignatures(File sigFile) {
+        if(this.sigFile != null) {
+            throw new RuntimeException("Can only load one signature file");
+        }
         this.sigFile = sigFile;
         File indexFile = getIndexFile(sigFile);
         if(!indexFile.exists()) {
             return false;
         }
         Charset utf8 = Charset.forName("UTF-8");
-        LibraryInfo libraryInfo = getLibraryInfo(sigFile, utf8);
+        libraryInfo = getLibraryInfo(sigFile, utf8);
 
         try {
             byte[] data = Files.readAllBytes(indexFile.toPath());
@@ -88,7 +91,6 @@ public class IndexedSignatureFile implements ISignatureFile {
                     index = line.index;
                     startIndex = index;
                     if(currentList == signaturesByClassnameIdx) {
-                        allLibraryInfos.put(line.mhash, libraryInfo);
                         allSignatureCount += line.nb;
                     }
                     if(index >= data.length) {
@@ -181,8 +183,8 @@ public class IndexedSignatureFile implements ISignatureFile {
     }
 
     @Override
-    public Map<String, LibraryInfo> getAllLibraryInfos() {
-        return allLibraryInfos;
+    public LibraryInfo getLibraryInfos() {
+        return libraryInfo;
     }
 
     @Override
@@ -311,6 +313,11 @@ public class IndexedSignatureFile implements ISignatureFile {
             return null;
         }
         return res;
+    }
+
+    @Override
+    public boolean hasSignaturesForClassname(String className) {
+        return signaturesByClassnameIdx.get(className) != null;
     }
 
     @Override

@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import com.pnf.androsig.apply.model.MethodSignature;
@@ -136,5 +137,13 @@ public class DatabaseReferenceFile {
             }
             return v2Test ? -1: v1.compareTo(v2);
         }
+    }
+
+    public Set<String> getReducedVersions() {
+        Set<String> versionList = new TreeSet<>(new VersionComparator());
+        for(String v: merged) {
+            versionList.add(v.replace("_d8r", "").replace("_d8d", "").replace("_d8", ""));
+        }
+        return versionList;
     }
 }
