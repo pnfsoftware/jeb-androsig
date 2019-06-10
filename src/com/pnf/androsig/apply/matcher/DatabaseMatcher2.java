@@ -769,7 +769,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             boolean firstRound) {
         Map<Integer, String> result = new HashMap<>();
         for(IAndrosigModule module: modules) {
-            result.putAll(module.postProcessRenameMethods(dex, dexHashCodeList, firstRound));
+            result.putAll(module.postProcessRenameClasses(dex, dexHashCodeList, firstRound));
         }
         return result;
     }

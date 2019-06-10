@@ -6,6 +6,7 @@
 package com.pnf.androsig.apply.modules;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -228,13 +229,13 @@ public class MethodFinderModule extends AbstractModule {
             }
         }
 
-        return null;
+        return new HashMap<>();
     }
 
     @Override
     public Map<Integer, String> postProcessRenameMethods(IDexUnit unit, DexHashcodeList dexHashCodeList,
             boolean firstRound) {
-        return null;
+        return new HashMap<>();
     }
 
     @Override

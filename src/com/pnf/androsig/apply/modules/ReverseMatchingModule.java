@@ -138,13 +138,13 @@ public class ReverseMatchingModule extends AbstractModule {
                 }
             }
         }
-        return null;
+        return new HashMap<>();
     }
 
     @Override
     public Map<Integer, String> postProcessRenameMethods(IDexUnit unit, DexHashcodeList dexHashCodeList,
             boolean firstRound) {
-        return null;
+        return new HashMap<>();
     }
 
     @Override
