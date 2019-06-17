@@ -86,6 +86,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
     // class index --- classPath_sig
     private Map<Integer, String> matchedClasses = new LinkedHashMap<>();
     private Set<Integer> ignoredClasses = new HashSet<>();
+    private Set<Integer> whiteListClasses = new HashSet<>();
 
     // method index --- methodName_sig
     private Map<Integer, String> matchedMethods = new LinkedHashMap<>();
@@ -357,7 +358,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         boolean hasCandidates = true;
         if(fileCandidates.isEmpty()) {
             hasCandidates = fileCandidates.processClass(this, matchedMethods, eClass, methods, innerLevel);
-            if(!hasCandidates) {
+            if(!hasCandidates && !whiteListClasses.contains(eClass.getIndex())) {
                 ignoredClasses.add(eClass.getIndex());
             }
         }
@@ -433,6 +434,25 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                                 if(cand.file.equals(bestFile.file)) {
                                     bestCandidate = cand;
                                     break;
+                                }
+                            }
+                        }
+                        else {
+                            whiteListClasses.add(eClass.getIndex());
+                            Set<InnerMatch> newBestCandidates = new HashSet<>();
+                            for(InnerMatch cand: bestCandidates) {
+                                if(f(dex, eClass, new ArrayList<>(cand.classPathMethod.keySet())) == null) {
+                                    newBestCandidates.add(cand);
+                                }
+                            }
+                            if(newBestCandidates.size() == 1) {
+                                bestCandidate = newBestCandidates.iterator().next();
+                            }
+                            else {
+                                if(!unique) {
+                                    if(newBestCandidates.size() > 1) {
+                                        contextMatches.saveClassMatchUnkownFile(originalSignature, className);
+                                    }
                                 }
                             }
                         }
@@ -598,6 +618,9 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
      * Validate a candidate match and save it.
      */
     protected boolean storeFinalCandidate(IDexUnit unit, IDexClass eClass, InnerMatch innerMatch, boolean firstRound) {
+        if(matchedClasses.containsValue(innerMatch.className)) {
+            return false;
+        }
         if(innerMatch.className.contains("$")) {
             // allow renaming only when parent classes are fine, because inner class tend to be the same in some projects
             String originalSignature = eClass.getSignature(true);
@@ -694,7 +717,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 // postprocess: reinject class
                 for(Entry<Integer, MethodSignature> methodName_method: innerMatch.classPathMethod.entrySet()) {
                     MethodSignature strArray = methodName_method.getValue();
-                    if(strArray.getPrototype().isEmpty()) {
+                    if(strArray.getPrototype().isEmpty()
+                            || innerMatch.doNotRenameIndexes.contains(methodName_method.getKey())) {
                         continue; // shorty or several matched: can not reinject classes anyway
                     }
                     IDexMethod m = unit.getMethod(methodName_method.getKey());
