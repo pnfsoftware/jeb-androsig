@@ -33,7 +33,7 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
 public class DatabaseReferenceFile {
     private final ILogger logger = GlobalLog.getLogger(DatabaseReferenceFile.class);
 
-    /* TODO may be null: could be defined to kick the bad candidates */
+    /*  may be null: could be defined to kick the bad candidates */
     // private DatabaseReferenceFile parent;
 
     public String file;
@@ -91,13 +91,14 @@ public class DatabaseReferenceFile {
         }
     }
 
-    private boolean hasNoVersion() {
+    boolean hasNoVersion() {
         return versions == null || (versions.size() == 1 && versions.containsKey("all"));
     }
 
     public List<String> getMergedVersions() {
         return merged;
     }
+
     public Set<String> getAvailableVersions() {
         if(merged != null && !merged.isEmpty()) {
             return new HashSet<>(merged);

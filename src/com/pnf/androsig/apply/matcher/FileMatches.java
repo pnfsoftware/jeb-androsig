@@ -16,6 +16,8 @@ import java.util.Set;
 
 import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.MethodSignature;
+import com.pnf.androsig.apply.util.DexUtilLocal;
+import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
 
 /**
@@ -25,7 +27,6 @@ import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
  *
  */
 public class FileMatches {
-
     private Map<Integer, DatabaseReferenceFile> matchedClassesFile = new HashMap<>();
 
     /** Used files -> list of versions match (with occurrences) */
@@ -43,8 +44,22 @@ public class FileMatches {
         return usedSigFiles.containsKey(f);
     }
 
-    public DatabaseReferenceFile getFileFromClass(IDexClass dexClass) {
-        return getFileFromClassId(dexClass.getIndex());
+    public DatabaseReferenceFile getFromFilename(String file) {
+        return usedSigFiles.get(file);
+    }
+
+    public DatabaseReferenceFile getFileFromClass(IDexUnit dex, IDexClass dexClass) {
+        DatabaseReferenceFile refFile = getFileFromClassId(dexClass.getIndex());
+        if(refFile == null) {
+            String signature = dexClass.getSignature(true);
+            if(DexUtilLocal.isInnerClass(signature)) {
+                refFile = getFileFromClass(dex, DexUtilLocal.getParentClass(dex, signature));
+                if(refFile != null) {
+                    matchedClassesFile.put(dexClass.getIndex(), refFile);
+                }
+            }
+        }
+        return refFile;
     }
 
     public DatabaseReferenceFile getFileFromClassId(int index) {
@@ -64,7 +79,14 @@ public class FileMatches {
         return matchedClassesFile.remove(dexClass.getIndex());
     }
 
-    public boolean addVersions(String file, Collection<MethodSignature> values) {
+    /**
+     * Save and merge versions used for one file.
+     * 
+     * @param file
+     * @param values
+     * @return
+     */
+    public boolean saveFileVersions(String file, Collection<MethodSignature> values) {
         DatabaseReferenceFile refFile = usedSigFiles.get(file);
         if(refFile == null) {
             refFile = new DatabaseReferenceFile(file, null);
@@ -86,10 +108,11 @@ public class FileMatches {
     }
 
 
-    public String getMatchedClassFile(IDexClass cl, String className, DatabaseReference ref) {
-        DatabaseReferenceFile refFile = getFileFromClass(cl);
+    public DatabaseReferenceFile getMatchedClassFile(IDexUnit dex, IDexClass cl, String className,
+            DatabaseReference ref) {
+        DatabaseReferenceFile refFile = getFileFromClass(dex, cl);
         if(refFile != null) {
-            return refFile.file;
+            return refFile;
         }
         String f = null;
         List<String> fs = ref.getFilesContainingClass(className);
@@ -98,11 +121,11 @@ public class FileMatches {
         }
         if(fs.size() == 1) {
             f = fs.get(0);
-            addMatchedClassFiles(cl, f);
             if(!usedSigFiles.containsKey(f)) {
                 usedSigFiles.put(f, null);
             }
-            return f;
+            addMatchedClassFiles(cl, f);
+            return usedSigFiles.get(f);
         }
         List<String> candidates = new ArrayList<>();
         for(String cand: fs) {
@@ -111,12 +134,12 @@ public class FileMatches {
             }
         }
         if(candidates.isEmpty()) {
-            return fs.get(0);
+            return null;
         }
         if(candidates.size() == 1) {
             f = candidates.get(0);
             addMatchedClassFiles(cl, f);
-            return f;
+            return usedSigFiles.get(f);
         }
         List<String> newcandidates = new ArrayList<>();
         int bestLevel = -1;
@@ -140,7 +163,7 @@ public class FileMatches {
         if(newcandidates.size() == 1) {
             f = newcandidates.get(0);
             addMatchedClassFiles(cl, f);
-            return f;
+            return usedSigFiles.get(f);
         }
         return null;// maybe duplicated, wait for other part to decide
     }

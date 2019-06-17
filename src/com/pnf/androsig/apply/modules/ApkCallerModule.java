@@ -104,7 +104,7 @@ public class ApkCallerModule extends AbstractModule {
         if(cl == null) {
             return null;
         }
-        DatabaseReferenceFile f = getFileFromClass(cl);
+        DatabaseReferenceFile f = getFileFromClass(unit, cl);
         if(f != null) {
             List<MethodSignature> candidates = new ArrayList<>();
             List<MethodSignature> compatibleSignatures = getSignaturesForClassname(f, value.getCname());

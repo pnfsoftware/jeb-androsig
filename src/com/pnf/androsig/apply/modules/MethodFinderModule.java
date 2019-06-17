@@ -16,18 +16,20 @@ import com.pnf.androsig.apply.matcher.ContextMatches;
 import com.pnf.androsig.apply.matcher.DatabaseMatcherParameters;
 import com.pnf.androsig.apply.matcher.DatabaseReferenceFile;
 import com.pnf.androsig.apply.matcher.FileMatches;
+import com.pnf.androsig.apply.matcher.HierarchyMatcher;
 import com.pnf.androsig.apply.matcher.IAndrosigModule;
 import com.pnf.androsig.apply.matcher.IDatabaseMatcher;
 import com.pnf.androsig.apply.matcher.MatchingSearch;
 import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.DexHashcodeList;
 import com.pnf.androsig.apply.model.MethodSignature;
-import com.pnfsoftware.jeb.core.units.code.ICodeType;
+import com.pnf.androsig.apply.util.DexUtilLocal;
 import com.pnfsoftware.jeb.core.units.code.IInstruction;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexPrototype;
+import com.pnfsoftware.jeb.util.base.Couple;
 import com.pnfsoftware.jeb.util.format.Strings;
 
 /**
@@ -67,14 +69,10 @@ public class MethodFinderModule extends AbstractModule {
                 // class not loaded in dex (maybe in another dex)
                 continue;
             }
-            DatabaseReferenceFile refFile = fileMatches.getFileFromClass(eClass);
-            String f = null;
-            if(refFile != null) {
-                f = refFile.file;
-            }
-            if(f == null) {
+            DatabaseReferenceFile refFile = fileMatches.getFileFromClass(dex, eClass);
+            if(refFile == null) {
                 // update matchedClassesFile
-                f = fileMatches.getMatchedClassFile(eClass, entry.getValue(), ref);
+                refFile = fileMatches.getMatchedClassFile(dex, eClass, entry.getValue(), ref);
             }
             List<? extends IDexMethod> methods = eClass.getMethods();
             if(methods == null || methods.size() == 0) {
@@ -84,12 +82,12 @@ public class MethodFinderModule extends AbstractModule {
             String className = eClass.getSignature(true);
 
             boolean safe = false;
-            MatchingSearch search = new MatchingSearch(dex, dexHashCodeList, ref, params, fileMatches, modules,
-                    firstRound, false, safe);
-            List<MethodSignature> alreadyMatches = getAlreadyMatched(dex, className, methods, search, f);
+            MatchingSearch search = new MatchingSearch(getDbMatcher(), dex, dexHashCodeList, ref, params, fileMatches,
+                    modules, firstRound, false, safe);
+            List<MethodSignature> alreadyMatches = getAlreadyMatched(dex, className, methods, search, refFile);
             int matchedMethodsSize = alreadyMatches.size();
             do {
-                List<String> files = null;
+                List<DatabaseReferenceFile> files = null;
                 matchedMethodsSize = alreadyMatches.size();
                 for(IDexMethod eMethod: methods) {
                     if(!eMethod.isInternal() || matchedMethods.containsKey(eMethod.getIndex())) {
@@ -99,10 +97,18 @@ public class MethodFinderModule extends AbstractModule {
 
                     if(files == null) {
                         // lazy file init of files
-                        files = getCandidateFilesForClass(f, className);
-                        if(files == null) {
+                        List<String> rawFiles = getCandidateFilesForClass(refFile, className);
+                        if(rawFiles == null) {
                             // external library (not in signature files): no need to check other methods
                             break;
+                        }
+                        files = new ArrayList<>();
+                        for(String rf: rawFiles) {
+                            DatabaseReferenceFile f = fileMatches.getFromFilename(rf);
+                            if(f == null) {
+                                f = new DatabaseReferenceFile(rf, null);
+                            }
+                            files.add(f);
                         }
                     }
 
@@ -116,7 +122,7 @@ public class MethodFinderModule extends AbstractModule {
                         if(mhash_tight == null) {
                             continue;
                         }
-                        for(String file: files) {
+                        for(DatabaseReferenceFile file: files) {
                             MethodSignature strArray = search.findMethodMatch(file, mhash_tight, prototypes, shorty,
                                     className, alreadyMatches, eMethod, false);
                             if(strArray != null) {
@@ -144,7 +150,7 @@ public class MethodFinderModule extends AbstractModule {
                         // attempt signature matching only
                         methodNameMerged = "";
                         MethodSignature strArray = null;
-                        for(String file: files) {
+                        for(DatabaseReferenceFile file: files) {
                             List<MethodSignature> sigs = search.getSignaturesForClassname(file, className, true,
                                     eMethod);
                             if(!sigs.isEmpty()) {
@@ -192,44 +198,57 @@ public class MethodFinderModule extends AbstractModule {
                 }
                 if(matchedMethodsSize == alreadyMatches.size() && !safe) {
                     safe = true;
-                    search = new MatchingSearch(dex, dexHashCodeList, ref, params, fileMatches, modules, firstRound,
-                            false, safe);
+                    search = new MatchingSearch(getDbMatcher(), dex, dexHashCodeList, ref, params, fileMatches, modules,
+                            firstRound, false, safe);
                     matchedMethodsSize++;
                 }
             }
             while(matchedMethodsSize != alreadyMatches.size());
 
             // inject inheritance (sometimes only way for empty classes)
-            if(f != null) {
-                List<MethodSignature> allMethods = ref.getParentForClassname(f, className);
-                if(allMethods != null && allMethods.size() == 1) {
-                    List<String> supertypes = allMethods.get(0).getTargetSuperType();
-                    List<String> interfaces = allMethods.get(0).getTargetInterfaces();
-                    if(supertypes != null && !supertypes.isEmpty()) {
-                        String supertype = supertypes.get(0);
-                        saveClassMatchInherit(eClass.getSupertypes().get(0).getSignature(true),
+            if(refFile != null) {
+                Couple<String, List<String>> hierarchy = ref.getParentForClassname(refFile, className);
+                if(hierarchy != null) {
+                    HierarchyMatcher hierarchyMgr = new HierarchyMatcher(eClass);
+                    String supertype = hierarchy.getFirst();
+                    List<String> interfaces = hierarchy.getSecond();
+                    if(supertype != null) {
+                        saveClassMatchInherit(hierarchyMgr.getSuperType(),
                                 supertype, className);
                     }
                     if(interfaces != null && !interfaces.isEmpty()) {
-                        List<? extends ICodeType> realInterfaces = eClass.getImplementedInterfaces();
-                        if(realInterfaces.size() == interfaces.size()) {
-                            // remove same name
-                            for(int i = 0; i < realInterfaces.size(); i++) {
-                                String realSig = realInterfaces.get(i).getSignature(true);
-                                for(int j = 0; j < interfaces.size(); j++) {
-                                    String sig = interfaces.get(j);
-                                    if(realSig.equals(sig)) {
-                                        realInterfaces.remove(i);
-                                        i--;
-                                        interfaces.remove(j);
-                                        break;
-                                    }
+                        List<String> realInterfaces = hierarchyMgr.getInterfaces();
+                        // remove same name
+                        for(int i = 0; i < realInterfaces.size(); i++) {
+                            String realSig = realInterfaces.get(i);
+                            for(int j = 0; j < interfaces.size(); j++) {
+                                String sig = interfaces.get(j);
+                                if(realSig.equals(sig)) {
+                                    realInterfaces.remove(i);
+                                    i--;
+                                    interfaces.remove(j);
+                                    break;
                                 }
                             }
                         }
-                        if(realInterfaces.size() == 1) {
-                            saveClassMatchInherit(realInterfaces.get(0).getSignature(true),
-                                    interfaces.get(0), className);
+                        if(realInterfaces.size() == 1 && interfaces.size() == 1) {
+                            saveClassMatchInherit(realInterfaces.get(0), interfaces.get(0), className);
+                        }
+                        else if(!realInterfaces.isEmpty() && !interfaces.isEmpty()) {
+                            // attempt to bind them
+                            for(String interName: realInterfaces) {
+                                // interfaces may not all be imported (obfuscation)
+                                List<String> candidates = new ArrayList<>();
+                                for(String c: interfaces) {
+                                    if(DexUtilLocal.isCompatibleClasses(c, interName)) {
+                                        candidates.add(c);
+                                    }
+                                }
+                                if(candidates.size() == 1) {
+                                    saveClassMatchInherit(interName, candidates.get(0), className);
+                                    interfaces.remove(candidates.get(0));
+                                }
+                            }
                         }
                     }
                 } // else TODO pick right version or parent data not available
@@ -251,7 +270,7 @@ public class MethodFinderModule extends AbstractModule {
     }
 
     private List<MethodSignature> getAlreadyMatched(IDexUnit dex, String className, List<? extends IDexMethod> methods,
-            MatchingSearch search, String file) {
+            MatchingSearch search, DatabaseReferenceFile file) {
         List<MethodSignature> alreadyMatches = new ArrayList<>();
         for(IDexMethod eMethod: methods) {
             String methodName = matchedMethods.get(eMethod.getIndex());
@@ -279,7 +298,7 @@ public class MethodFinderModule extends AbstractModule {
         return alreadyMatches;
     }
 
-    private List<String> getCandidateFilesForClass(String f, String className) {
+    private List<String> getCandidateFilesForClass(DatabaseReferenceFile f, String className) {
         List<String> files = null;
         if(f == null) {
             files = ref.getFilesContainingClass(className);
@@ -302,7 +321,7 @@ public class MethodFinderModule extends AbstractModule {
         }
         else {
             files = new ArrayList<>();
-            files.add(f);
+            files.add(f.file);
         }
         return files;
     }

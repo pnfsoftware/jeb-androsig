@@ -94,6 +94,14 @@ public class MethodSignature {
             return versions.split(";");
         }
 
+        public String getTargetSuperType() {
+            return MethodSignature.getTargetSuperType(caller);
+        }
+
+        public List<String> getTargetInterfaces() {
+            return MethodSignature.getTargetInterfaces(caller);
+        }
+
         @Override
         public int hashCode() {
             final int prime = 31;
@@ -251,8 +259,11 @@ public class MethodSignature {
      * 
      * @return
      */
-    public List<String> getTargetSuperType() {
-        String superT = getParentField();
+    public String getTargetSuperType() {
+        return getTargetSuperType(getParentField());
+    }
+
+    private static String getTargetSuperType(String superT) {
         if(superT == null) {
             return null;
         }
@@ -260,7 +271,11 @@ public class MethodSignature {
         if(parents.length == 0 || parents[0].isEmpty()) {
             return null;
         }
-        return getParentClasses(parents[0]);
+        List<String> parent = getParentClasses(parents[0]);
+        if(parent == null || parent.size() != 1) {
+            return null;
+        }
+        return parent.get(0);
     }
 
     /**
@@ -270,7 +285,10 @@ public class MethodSignature {
      * @return
      */
     public List<String> getTargetInterfaces() {
-        String superT = getParentField();
+        return getTargetInterfaces(getParentField());
+    }
+
+    private static List<String> getTargetInterfaces(String superT) {
         if(superT == null) {
             return null;
         }

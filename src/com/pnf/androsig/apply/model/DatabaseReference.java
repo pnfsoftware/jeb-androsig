@@ -15,6 +15,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.pnf.androsig.apply.matcher.DatabaseReferenceFile;
+import com.pnf.androsig.apply.model.MethodSignature.MethodSignatureRevision;
+import com.pnfsoftware.jeb.util.base.Couple;
 import com.pnfsoftware.jeb.util.logging.GlobalLog;
 import com.pnfsoftware.jeb.util.logging.ILogger;
 
@@ -163,9 +165,74 @@ public class DatabaseReference {
     }
 
     @SuppressWarnings("resource")
-    public List<MethodSignature> getParentForClassname(String file, String className) {
+    public Couple<String, List<String>> getParentForClassname(String file, String className) {
         ISignatureFile sigFile = signatureFileFactory.getSignatureFile(file);
-        return sigFile.getParent(className);
+        List<MethodSignature> sigs = sigFile.getParent(className);
+        if(sigs == null || sigs.size() != 1) {
+            return null;
+        }
+        return new Couple<>(sigs.get(0).getTargetSuperType(), sigs.get(0).getTargetInterfaces());
+    }
+
+    @SuppressWarnings("resource")
+    public Couple<String, List<String>> getParentForClassname(DatabaseReferenceFile refFile, String className) {
+        ISignatureFile sigFile = signatureFileFactory.getSignatureFile(refFile.file);
+        List<MethodSignature> sigs = sigFile.getParent(className);
+        if(sigs == null) {
+            return null;
+        }
+        Set<String> versions = refFile.getAvailableVersions();
+        sigs = sigs.stream().filter(m -> intersect(versions, m.getVersions())).collect(Collectors.toList());
+        if(sigs.size() != 1) {
+            return null;
+        }
+        MethodSignature sig = sigs.get(0);
+        String parent = null;
+        List<String >interfaces = null;
+        if (sig.getRevisions().size() == 1) {
+            return new Couple<>(sig.getTargetSuperType(), sig.getTargetInterfaces());
+        }
+        boolean firstFound = false;
+        for(MethodSignatureRevision rev: sig.getRevisions()) {
+            boolean found = false;
+            for (String v : rev.getVersions()) {
+                if (versions.contains(v)) {
+                    found = true;
+                }
+            }
+            if (!found) {
+                continue;
+            }
+            if (!firstFound) {
+                firstFound = true;
+                parent = rev.getTargetSuperType();
+                interfaces = rev.getTargetInterfaces();
+            } else {
+                // expect same signature
+                if(parent != null) {
+                    if(!parent.equals(rev.getTargetSuperType())) {
+                        parent = null;
+                    }
+                }
+                if(interfaces != null) {
+                    List<String> altInterfaces = rev.getTargetInterfaces();
+                    if(altInterfaces == null || altInterfaces.size() != interfaces.size()) {
+                        interfaces = null;
+                        continue;
+                    }
+                    for(String inter: interfaces) {
+                        if(!altInterfaces.contains(inter)) {
+                            interfaces = null;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if(parent == null && interfaces == null) {
+            return null;
+        }
+        return new Couple<>(parent, interfaces);
     }
 
     public List<String> getClassList(String f) {

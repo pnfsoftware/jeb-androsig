@@ -15,6 +15,7 @@ import com.pnf.androsig.apply.matcher.IAndrosigModule;
 import com.pnf.androsig.apply.matcher.IDatabaseMatcher;
 import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.MethodSignature;
+import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
 
 /**
@@ -44,12 +45,16 @@ public abstract class AbstractModule implements IAndrosigModule {
         return ref.getSignaturesForClassname(file, className, true);
     }
 
-    public DatabaseReferenceFile getFileFromClass(IDexClass dexClass) {
-        return fileMatches.getFileFromClass(dexClass);
+    public DatabaseReferenceFile getFileFromClass(IDexUnit dex, IDexClass dexClass) {
+        return fileMatches.getFileFromClass(dex, dexClass);
     }
 
     public DatabaseReferenceFile getFileFromClassId(int index) {
         return fileMatches.getFileFromClassId(index);
+    }
+
+    public IDatabaseMatcher getDbMatcher() {
+        return dbMatcher;
     }
 
     public boolean hasMatchedClass(Integer key) {

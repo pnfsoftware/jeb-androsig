@@ -210,6 +210,13 @@ public class IndexedSignatureFile implements ISignatureFile {
         mergeSignatures(signatures, null);
     }
 
+    /**
+     * Updates signatures by merging same method named and same signature lines.
+     * 
+     * @param signatures input/output: modified list
+     * @param allMethods reference method list. If not indicated, use signaturesByClassname (when
+     *            loaded) or signaturesByMethodsIdx (when not loaded)
+     */
     private void mergeSignatures(List<MethodSignature> signatures, List<MethodSignature> allMethods) {
         if(signatures == null) {
             // preventive: for meta essentially
@@ -329,7 +336,8 @@ public class IndexedSignatureFile implements ISignatureFile {
                 res = load(signaturesByClassnameIdx, className, signaturesByClassname, metaByClassname);
                 List<MethodSignature> ref = new ArrayList<>(res);
                 mergeSignatures(res, ref);
-                mergeSignatures(metaByClassname.get(className), ref);
+                List<MethodSignature> metas = metaByClassname.get(className);
+                mergeSignatures(metas, metas == null ? null: new ArrayList<>(metas));
             }
             return res;
         }

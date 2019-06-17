@@ -98,6 +98,12 @@ public class ContextMatches {
         }
     }
 
+    public void saveClassMatchUnkownFile(String oldClass, String newClass) {
+        if(saveClassMatch(oldClass, newClass) == Boolean.TRUE) {
+            logger.debug("Found match class: %s from different files", newClass);
+        }
+    }
+
     public void setInvalidClass(String key) {
         contextMatches.put(key, INVALID_MATCH);
     }

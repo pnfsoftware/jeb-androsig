@@ -170,4 +170,54 @@ public class DexUtilLocal {
         return sortedClasses;
     }
 
+    public static boolean isCompatibleClasses(String unstable, String original) {
+        if(unstable.equals(original)) {
+            return true;
+        }
+        // array comparison
+        do {
+            boolean array1 = unstable.startsWith("[");
+            boolean array2 = original.startsWith("[");
+            if(array1 != array2) {
+                return false;
+            }
+            if(!array1) {
+                break;
+            }
+            unstable = unstable.substring(1);
+            original = original.substring(1);
+        }
+        while(true);
+
+        // same type: not verified by shorty (because array is an Object Type, a type comparison of 2 objects may be different)
+        if(unstable.charAt(0) != original.charAt(0)) {
+            return false;
+        }
+        if(unstable.charAt(0) != 'L') {
+            return true;
+        }
+
+        // are type compatibles?
+        if(isJavaPlatformClass(original) || isAndroidPlatformClass(original) || isJavaPlatformClass(unstable)
+                || isAndroidPlatformClass(unstable)) {
+            return false; // names should be equal
+        }
+        return true;
+    }
+
+    private static boolean isJavaPlatformClass(String original) {
+        return original.startsWith("Ljava/");
+    }
+
+    private static boolean isAndroidPlatformClass(String original) {
+        if(!original.startsWith("Landroid/")) {
+            return false;
+        }
+        if(original.startsWith("Landroid/support/") || original.startsWith("Landroid/arch/")
+                || original.startsWith("Landroid/databinding/") || original.startsWith("Landroid/car/")) {
+            return false;
+        }
+        return true;
+    }
+
 }
