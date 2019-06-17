@@ -79,7 +79,7 @@ public class MethodFinderModule extends AbstractModule {
                 // empty class
                 continue;
             }
-            String className = eClass.getSignature(true);
+            String className = entry.getValue(); //eClass.getSignature(true); // watch out!! if class was not renamed (for example, anonymous classes)
 
             boolean safe = false;
             MatchingSearch search = new MatchingSearch(getDbMatcher(), dex, dexHashCodeList, ref, params, fileMatches,

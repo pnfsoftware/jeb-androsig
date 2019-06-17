@@ -130,16 +130,6 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                     cl.getSignature(false), cl.getSignature(true));
             return;
         }
-        if(classname.startsWith("Landroid/support/") && classname.contains("/internal")) {
-            // remove internal package
-            String original = cl.getSignature(false);
-            if(original.startsWith("Landroid/support/") && classname.contains("/internal")) {
-                // keep as it
-            }
-            else {
-                classname = classname.replace("/internal", "");
-            }
-        }
         matchedClasses.put(cl.getIndex(), classname);
         if(!safe) {
             fileMatches.removeClassFiles(cl);
@@ -700,7 +690,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 if(!res) {
                     return false;
                 }
-                logger.i("Found match class: %s from file %s", innerMatch.className, innerMatch.file);
+                logger.debug("Found match class: %s from file %s", innerMatch.className, innerMatch.file);
                 addMatchedClass(eClass, innerMatch.className, true);
                 ArrayList<Integer> tempArrayList = dupClasses.get(innerMatch.className);
                 if(tempArrayList != null) {
@@ -886,7 +876,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 }
             }
             else {
-                LibraryInfo res = ref.getLibraryInfos(file.file, entry.getValue());
+                LibraryInfo res = ref.getLibraryInfos(file.file, null);
                 if(file.getMergedVersions() != null && res.getVersions() == null) {
                     res.setVersions(file.getReducedVersions());
                 }

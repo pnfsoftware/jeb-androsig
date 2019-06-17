@@ -61,7 +61,7 @@ public class DatabaseReferenceFile {
                 if(versions.isEmpty()) {
                     merged.addAll(versionsList);
                 }
-                else if(!merged.isEmpty()) {
+                else {
                     List<String> tmp = CollectionUtil.intersection(versionsList, merged);
                     if(tmp.isEmpty()) {
                         // 2 options: either method is wrong or old method included

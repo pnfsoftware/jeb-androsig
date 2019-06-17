@@ -305,6 +305,9 @@ public class MatchingSearch {
                         fileCandidates.put(file, classes);
                     }
                     saveTemporaryCandidate(eMethod, sigLines, firstRound, classes, file, innerLevel);
+                    if(classes.isEmpty()) {
+                        fileCandidates.remove(file);
+                    }
                 }
             }
             else if(!firstRound) {
@@ -337,6 +340,9 @@ public class MatchingSearch {
                             fileCandidates.put(file, classes);
                         }
                         saveTemporaryCandidate(eMethod, sigLines, firstRound, classes, file, innerLevel);
+                        if(classes.isEmpty()) {
+                            fileCandidates.remove(file);
+                        }
                     }
                 }
             }

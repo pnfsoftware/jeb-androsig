@@ -80,20 +80,20 @@ public class ContextMatches {
 
     public void saveClassMatch(String oldClass, String newClass, String innerClass) {
         if(saveClassMatch(oldClass, newClass) == Boolean.TRUE) {
-            logger.i("Found match class: %s related to innerClass %s", newClass, innerClass);
+            logger.debug("Found match class: %s related to innerClass %s", newClass, innerClass);
         }
     }
 
     public void saveClassMatchInherit(String oldClass, String newClass, String inherit) {
         if(saveClassMatch(oldClass, newClass) == Boolean.TRUE) {
-            logger.i("Found match class: %s related to inherited %s", newClass, inherit);
+            logger.debug("Found match class: %s related to inherited %s", newClass, inherit);
         }
     }
 
     public void saveClassMatch(String oldClass, String newClass, String className, String methodName) {
         if(oldClass.charAt(0) == 'L' && newClass.charAt(0) == 'L') {
             if(saveClassMatch(oldClass, newClass) == Boolean.TRUE) {
-                logger.info("Found match class: %s by param matching from %s->%s", newClass, className, methodName);
+                logger.debug("Found match class: %s by param matching from %s->%s", newClass, className, methodName);
             }
         }
     }
@@ -133,6 +133,11 @@ public class ContextMatches {
                     break;
                 }
             }
+            if(newClass.equals(conflictVal)) {
+                // class not renamed, in lib
+                return Boolean.FALSE;
+            }
+            // only correct case is inner class partly renamed
             logger.error("Conflict: candidate %s has two class matching: %s and new %s", newClass, conflictVal,
                     oldClass);
             contextMatches.put(oldClass, INVALID_MATCH);
