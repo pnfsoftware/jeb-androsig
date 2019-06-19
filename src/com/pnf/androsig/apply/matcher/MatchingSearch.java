@@ -6,7 +6,6 @@
 package com.pnf.androsig.apply.matcher;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -207,7 +206,8 @@ public class MatchingSearch {
                     String shorty = null;//dex.getStrings().get(proto.getShortyIndex()).getValue();
 
                     sigLine = compatibleSignatures.stream()
-                            .filter(s -> isCompatibleSignature(eMethod, prototypes, true, shorty, false, s))
+                            .filter(s -> isCompatibleSignature(s, SignatureCheck.PROTOTYPE_STRICT, shorty, prototypes,
+                                    eMethod, null))
                             .collect(Collectors.toList());
                     String params1 = DexUtilLocal.extractParamsFromSignature(prototypes);
                     List<String> paramList = DexUtilLocal.parseSignatureParameters(params1);
@@ -417,7 +417,8 @@ public class MatchingSearch {
 
         // One class has several same sigs
         List<MethodSignature> realCandidates = elts.stream()
-                .filter(strArray -> strArray.getShorty().equals(shorty) && strArray.getPrototype().equals(prototype))
+                .filter(strArray -> isCompatibleSignature(strArray, SignatureCheck.PROTOTYPE_COMPATIBLE, shorty,
+                        prototype, null))
                 .collect(Collectors.toList());
         if(!realCandidates.isEmpty()) {
             List<MethodSignature> strArrays = mergeSignaturesPerClass(realCandidates);
@@ -458,12 +459,14 @@ public class MatchingSearch {
         String prototypes = proto.generate(true);
         List<MethodSignature> sigs = getSignaturesForClassname(file, className, true, eMethod);
         sigs = sigs.stream().filter(s -> s.getMname().equals(methodName)).collect(Collectors.toList());
-        MethodSignature ms = findMethodName(sigs, prototypes, true, null, false, className, new ArrayList<>(), eMethod);
+        MethodSignature ms = findMethodName(sigs, SignatureCheck.PROTOTYPE_STRICT, prototypes, null, className,
+                new ArrayList<>(), eMethod);
         if(ms != null) {
             return ms;
         }
         String shorty = dex.getStrings().get(proto.getShortyIndex()).getValue();
-        return findMethodName(sigs, prototypes, false, shorty, true, className, new ArrayList<>(), eMethod);
+        return findMethodName(sigs, SignatureCheck.PROTOTYPE_COMPATIBLE, prototypes, shorty, className,
+                new ArrayList<>(), eMethod);
     }
 
     public MethodSignature findMethodMatch(DatabaseReferenceFile file, String classPath,
@@ -507,32 +510,31 @@ public class MatchingSearch {
 
     public MethodSignature findMethodName(List<MethodSignature> sigs, String proto, String shorty,
             String classPath, Collection<MethodSignature> alreadyProcessedMethods, IDexMethod eMethod) {
-        MethodSignature sig = findMethodName(sigs, proto, true, shorty, false, classPath, alreadyProcessedMethods,
-                eMethod);
+        MethodSignature sig = findMethodName(sigs, SignatureCheck.PROTOTYPE_STRICT, proto, shorty, classPath,
+                alreadyProcessedMethods, eMethod);
         if(sig != null) {
             return sig;
         }
         if(!firstRound && !firstPass) {
-            return findMethodName(sigs, proto, false, shorty, true, classPath, alreadyProcessedMethods, eMethod);
+            return findMethodName(sigs, SignatureCheck.PROTOTYPE_COMPATIBLE, proto, shorty, classPath,
+                    alreadyProcessedMethods, eMethod);
         }
         return null;
     }
 
     private static List<MethodSignature> findMethodNames(Map<Integer, String> matchedClasses,
-            List<MethodSignature> sigs, String prototypes, boolean checkPrototypes, String shorty, boolean checkShorty,
+            List<MethodSignature> sigs, SignatureCheck check, String prototypes, String shorty,
             String classPath, Collection<MethodSignature> alreadyProcessedMethods, IDexMethod eMethod) {
         List<MethodSignature> results = new ArrayList<>();
         for(MethodSignature strArray: sigs) {
             if(!strArray.getCname().equals(classPath)) {
                 continue;
             }
-            if(!isCompatibleSignature(eMethod, prototypes, checkPrototypes, shorty, checkShorty, strArray)) {
+            if(!isCompatibleSignature(strArray, check, shorty, prototypes, eMethod, matchedClasses)) {
                 continue;
             }
-            if(isAlreadyProcessed(strArray, alreadyProcessedMethods, checkPrototypes, checkShorty)) {
-                continue;
-            }
-            if(!checkPrototypes && !isCompatiblePrototypeSignature(matchedClasses, eMethod, prototypes, strArray)) {
+            if(isAlreadyProcessed(strArray, alreadyProcessedMethods, check == SignatureCheck.PROTOTYPE_STRICT,
+                    check != SignatureCheck.PROTOTYPE_STRICT)) {
                 continue;
             }
             results.add(strArray);
@@ -555,11 +557,11 @@ public class MatchingSearch {
         return false;
     }
 
-    private MethodSignature findMethodName(List<MethodSignature> sigs, String prototypes, boolean checkPrototypes,
-            String shorty, boolean checkShorty, String classPath, Collection<MethodSignature> alreadyProcessedMethods,
+    private MethodSignature findMethodName(List<MethodSignature> sigs, SignatureCheck check, String prototypes,
+            String shorty, String classPath, Collection<MethodSignature> alreadyProcessedMethods,
             IDexMethod eMethod) {
-        List<MethodSignature> results = findMethodNames(dbMatcher.getMatchedClasses(), sigs, prototypes,
-                checkPrototypes, shorty, checkShorty, classPath, alreadyProcessedMethods, eMethod);
+        List<MethodSignature> results = findMethodNames(dbMatcher.getMatchedClasses(), sigs, check, prototypes, shorty,
+                classPath, alreadyProcessedMethods, eMethod);
         if(results.size() == 1) {
             return results.get(0);
         }
@@ -568,7 +570,7 @@ public class MatchingSearch {
             if(results.size() == 1) {
                 return results.get(0);
             }
-            if(!firstRound && !firstPass && checkPrototypes && safe) {
+            if(!firstRound && !firstPass && check == SignatureCheck.PROTOTYPE_STRICT && safe) {
                 // kind of last resort when no signature match.
                 // in addition, this happens quite often when implementing/extending public api
                 // it allows other methods with same signature to be distinguished in some cases
@@ -587,25 +589,48 @@ public class MatchingSearch {
         return null;
     }
 
-    private static boolean isCompatibleSignature(IDexMethod eMethod, String prototypes, boolean checkPrototypes,
-            String shorty, boolean checkShorty, MethodSignature strArray) {
-        if(checkPrototypes && !strArray.getPrototype().equals(prototypes)) {
+    public static enum SignatureCheck {
+        PROTOTYPE_STRICT, PROTOTYPE_COMPATIBLE, SHORTY
+    }
+
+    private static boolean isCompatibleSignature(MethodSignature strArray, SignatureCheck check, String shorty,
+            String prototypes, IDexMethod eMethod, Map<Integer, String> matchedClasses) {
+        if(!isCompatibleSignature(strArray, check, shorty, prototypes, matchedClasses)) {
             return false;
         }
-        if(checkShorty && !strArray.getShorty().equals(shorty)) {
-            return false;
-        }
+
         // init/clinit can not be changed, but is a good indicator for matching
         String methodName = eMethod.getName(true);
-        if(checkPrototypes) {
+        if(check == SignatureCheck.PROTOTYPE_COMPATIBLE || check == SignatureCheck.PROTOTYPE_STRICT) {
             return DexUtilLocal.isMethodCompatibleWithSignatures(methodName, prototypes, strArray.getMname(),
                     strArray.getPrototype());
         }
         return DexUtilLocal.isMethodCompatible(methodName, strArray.getMname());
     }
 
-    private static boolean isCompatiblePrototypeSignature(Map<Integer, String> matchedClasses, IDexMethod eMethod,
-            String prototypes, MethodSignature strArray) {
+    private static boolean isCompatibleSignature(MethodSignature strArray, SignatureCheck check, String shorty,
+            String prototype, Map<Integer, String> matchedClasses) {
+        switch(check) {
+        case PROTOTYPE_STRICT:
+            return strArray.getPrototype().equals(prototype);
+        case SHORTY:
+            return strArray.getShorty().equals(shorty);
+        case PROTOTYPE_COMPATIBLE:
+            if(strArray.getPrototype().equals(prototype)) {
+                return true;
+            }
+            if(!strArray.getShorty().equals(shorty)) {
+                return false;
+            }
+            return isCompatiblePrototypeSignature(strArray, prototype, matchedClasses);
+        default:
+            break;
+        }
+        return false;
+    }
+
+    private static boolean isCompatiblePrototypeSignature(MethodSignature strArray, String prototypes,
+            Map<Integer, String> matchedClasses) {
         String returnVal1 = prototypes.substring(prototypes.indexOf(")") + 1);
         String originalReturnVal = strArray.getPrototype().substring(strArray.getPrototype().indexOf(")") + 1);
         if(!DexUtilLocal.isCompatibleClasses(returnVal1, originalReturnVal)) {
@@ -621,7 +646,7 @@ public class MatchingSearch {
             if(paramI.equals(originalParamI)) {
                 continue;
             }
-            if(matchedClasses.containsValue(paramI)) {
+            if(matchedClasses != null && matchedClasses.containsValue(paramI)) {
                 // not equals, already renamed => either wrong renaming (should not happen often) or not valid candidate
                 return false;
             }
