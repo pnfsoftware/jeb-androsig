@@ -56,8 +56,8 @@ public class HierarchyMatcher {
             return true;
         }
         else if(voidInterfacesTest) {
-            // TODO merge, pick correct one
-            return true;
+            // interface may have been removed
+            return false;
         }
         else if(voidInterfaces != voidInterfacesTest) {
             return false;
@@ -75,6 +75,7 @@ public class HierarchyMatcher {
                     }
                 }
                 if(!found) {
+                    // can also be newer version
                     return false;
                 }
             }

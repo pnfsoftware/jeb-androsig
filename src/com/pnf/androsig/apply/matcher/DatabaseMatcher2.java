@@ -365,7 +365,10 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
 
         filterVersions(fileCandidates);
 
-        filterHierarchy(fileCandidates, eClass);
+        if(unique) {
+            // do not filter on second pass because interfaces can easily be modified (or new versions may be missed)
+            filterHierarchy(fileCandidates, eClass);
+        }
 
         findSmallMethods(fileCandidates, originalSignature, methods, unique);
 

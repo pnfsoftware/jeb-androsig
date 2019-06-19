@@ -8,6 +8,7 @@ package com.pnf.androsig.apply.model;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -188,7 +189,7 @@ public class DatabaseReference {
         }
         MethodSignature sig = sigs.get(0);
         String parent = null;
-        List<String >interfaces = null;
+        Set<String> interfaces = null;
         if (sig.getRevisions().size() == 1) {
             return new Couple<>(sig.getTargetSuperType(), sig.getTargetInterfaces());
         }
@@ -206,7 +207,8 @@ public class DatabaseReference {
             if (!firstFound) {
                 firstFound = true;
                 parent = rev.getTargetSuperType();
-                interfaces = rev.getTargetInterfaces();
+                List<String> interfacesList = rev.getTargetInterfaces();
+                interfaces = interfacesList == null ? new HashSet<>(): new HashSet<>(interfacesList);
             } else {
                 // expect same signature
                 if(parent != null) {
@@ -216,15 +218,8 @@ public class DatabaseReference {
                 }
                 if(interfaces != null) {
                     List<String> altInterfaces = rev.getTargetInterfaces();
-                    if(altInterfaces == null || altInterfaces.size() != interfaces.size()) {
-                        interfaces = null;
-                        continue;
-                    }
-                    for(String inter: interfaces) {
-                        if(!altInterfaces.contains(inter)) {
-                            interfaces = null;
-                            break;
-                        }
+                    if(altInterfaces != null) {
+                        interfaces.addAll(altInterfaces);
                     }
                 }
             }
@@ -232,7 +227,7 @@ public class DatabaseReference {
         if(parent == null && interfaces == null) {
             return null;
         }
-        return new Couple<>(parent, interfaces);
+        return new Couple<>(parent, (interfaces == null || interfaces.isEmpty()) ? null: new ArrayList<>(interfaces));
     }
 
     public List<String> getClassList(String f) {
