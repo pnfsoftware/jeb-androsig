@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -19,6 +21,9 @@ import com.pnf.androsig.apply.model.MethodSignature;
 import com.pnf.androsig.apply.util.DexUtilLocal;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
+import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
+import com.pnfsoftware.jeb.util.logging.GlobalLog;
+import com.pnfsoftware.jeb.util.logging.ILogger;
 
 /**
  * Keep a library of files/versions used and try to get coherence with one version.
@@ -27,10 +32,19 @@ import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
  *
  */
 public class FileMatches {
+    private final ILogger logger = GlobalLog.getLogger(FileMatches.class);
+
     private Map<Integer, DatabaseReferenceFile> matchedClassesFile = new HashMap<>();
 
     /** Used files -> list of versions match (with occurrences) */
     private Map<String, DatabaseReferenceFile> usedSigFiles = new HashMap<>();
+
+    // class index --- classPath_sig
+    private Map<Integer, String> matchedClasses = new LinkedHashMap<>();
+
+    // method index --- methodName_sig
+    private Map<Integer, String> matchedMethods = new LinkedHashMap<>();
+    private Map<Integer, MethodSignature> matchedSigMethods = new HashMap<>();
 
     public Set<String> getSignatureFileUsed() {
         return usedSigFiles.keySet();
@@ -49,6 +63,9 @@ public class FileMatches {
     }
 
     public DatabaseReferenceFile getFileFromClass(IDexUnit dex, IDexClass dexClass) {
+        if(dexClass == null) {
+            return null;
+        }
         DatabaseReferenceFile refFile = getFileFromClassId(dexClass.getIndex());
         if(refFile == null) {
             String signature = dexClass.getSignature(true);
@@ -200,4 +217,116 @@ public class FileMatches {
         DatabaseReferenceFile refFile = usedSigFiles.get(file);
         return ref.getSignatureLines(refFile, hashcode, tight);
     }
+
+    public void addMatchedClass(IDexClass cl, String classname, boolean safe) {
+        if(matchedClasses.get(cl.getIndex()) != null) {
+            logger.error("Conflict: Try to replace class %s", matchedClasses.get(cl.getIndex()));
+            return;
+        }
+        if(matchedClasses.containsValue(classname)) {
+            logger.error("Conflict: Try to bind class %s to %s which is already bind to ", classname,
+                    cl.getSignature(false), cl.getSignature(true));
+            return;
+        }
+        matchedClasses.put(cl.getIndex(), classname);
+        if(!safe) {
+            removeClassFiles(cl);
+        }
+    }
+
+    public void removeMatchedClass(int index) {
+        matchedClasses.remove(index);
+        matchedClassesFile.remove(index);
+    }
+
+    public String getMatchedClass(IDexClass cl) {
+        return getMatchedClass(cl.getIndex());
+    }
+
+    public String getMatchedClass(int index) {
+        return matchedClasses.get(index);
+    }
+
+    public boolean containsMatchedClass(IDexClass cl) {
+        return containsMatchedClass(cl.getIndex());
+    }
+
+    public boolean containsMatchedClass(int index) {
+        return matchedClasses.containsKey(index);
+    }
+
+    public boolean containsMatchedClassValue(String className) {
+        return matchedClasses.containsValue(className);
+    }
+
+    public Map<Integer, String> getMatchedClasses() {
+        return matchedClasses;
+    }
+
+    public Set<Entry<Integer, String>> entrySetMatchedClasses() {
+        return matchedClasses.entrySet();
+    }
+
+    public void addMatchedMethod(IDexMethod m, String methodName) {
+        if(matchedMethods.get(m.getIndex()) != null) {
+            logger.error("Conflict: Try to replace method %s", m);
+            return;
+        }
+        matchedMethods.put(m.getIndex(), methodName);
+    }
+
+    public void addMatchedMethod(int index, MethodSignature sig) {
+        if(matchedMethods.get(index) != null) {
+            logger.error("Conflict: Try to replace method %s", index);
+            return;
+        }
+        matchedMethods.put(index, sig.getMname());
+        matchedSigMethods.put(index, sig);
+    }
+
+    public void bindMatchedSigMethod(IDexMethod eMethod, MethodSignature ms) {
+        matchedSigMethods.put(eMethod.getIndex(), ms);
+    }
+
+    public String getMatchedMethod(IDexMethod m) {
+        return getMatchedMethod(m.getIndex());
+    }
+
+    public String getMatchedMethod(int index) {
+        return matchedMethods.get(index);
+    }
+
+    public MethodSignature getMatchedSigMethod(IDexMethod m) {
+        return getMatchedSigMethod(m.getIndex());
+    }
+
+    public MethodSignature getMatchedSigMethod(int index) {
+        return matchedSigMethods.get(index);
+    }
+
+    public boolean containsMatchedMethod(IDexMethod m) {
+        return containsMatchedMethod(m.getIndex());
+    }
+
+    public boolean containsMatchedMethod(int index) {
+        return matchedMethods.containsKey(index);
+    }
+
+    public void removeMatchedMethod(int index) {
+        matchedMethods.remove(index);
+        matchedSigMethods.remove(index);
+    }
+
+    public Map<Integer, String> getMatchedMethods() {
+        return matchedMethods;
+    }
+
+    public Set<Entry<Integer, String>> entrySetMatchedMethods() {
+        return matchedMethods.entrySet();
+    }
+
+    public Set<Entry<Integer, MethodSignature>> entrySetMatchedSigMethods() {
+        return matchedSigMethods.entrySet();
+    }
+
 }

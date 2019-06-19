@@ -16,7 +16,6 @@ import java.util.Set;
 import com.pnf.androsig.apply.matcher.ContextMatches;
 import com.pnf.androsig.apply.matcher.DatabaseReferenceFile;
 import com.pnf.androsig.apply.matcher.FileMatches;
-import com.pnf.androsig.apply.matcher.IDatabaseMatcher;
 import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.DexHashcodeList;
 import com.pnf.androsig.apply.model.MethodSignature;
@@ -33,14 +32,12 @@ import com.pnfsoftware.jeb.util.format.Strings;
  */
 public class ApkCallerModule extends AbstractModule {
 
-    private Map<Integer, MethodSignature> matchedSigMethods;
 
     private Map<Integer, Map<Integer, Integer>> apkCallerLists = null;
 
-    public ApkCallerModule(IDatabaseMatcher dbMatcher, ContextMatches contextMatches, FileMatches fileMatches,
-            DatabaseReference ref, Map<Integer, MethodSignature> matchedSigMethods) {
-        super(dbMatcher, contextMatches, fileMatches, ref);
-        this.matchedSigMethods = matchedSigMethods;
+    public ApkCallerModule(ContextMatches contextMatches, FileMatches fileMatches,
+            DatabaseReference ref) {
+        super(contextMatches, fileMatches, ref);
     }
 
     @Override
@@ -54,7 +51,7 @@ public class ApkCallerModule extends AbstractModule {
         if(apkCallerLists.isEmpty()) {
             SignatureHandler.loadAllCallerLists(unit, apkCallerLists);
         }
-        for(Entry<Integer, MethodSignature> match: matchedSigMethods.entrySet()) {
+        for(Entry<Integer, MethodSignature> match: fileMatches.entrySetMatchedSigMethods()) {
             Map<Integer, Integer> callers = apkCallerLists.get(match.getKey());
             Map<String, Integer> calls = new HashMap<>();
             if(callers != null) {

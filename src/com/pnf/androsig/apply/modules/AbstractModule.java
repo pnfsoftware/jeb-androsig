@@ -6,13 +6,11 @@
 package com.pnf.androsig.apply.modules;
 
 import java.util.List;
-import java.util.Map;
 
 import com.pnf.androsig.apply.matcher.ContextMatches;
 import com.pnf.androsig.apply.matcher.DatabaseReferenceFile;
 import com.pnf.androsig.apply.matcher.FileMatches;
 import com.pnf.androsig.apply.matcher.IAndrosigModule;
-import com.pnf.androsig.apply.matcher.IDatabaseMatcher;
 import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.MethodSignature;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
@@ -23,15 +21,13 @@ import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
  *
  */
 public abstract class AbstractModule implements IAndrosigModule {
-    private IDatabaseMatcher dbMatcher;
     private ContextMatches contextMatches = new ContextMatches();
     protected FileMatches fileMatches = new FileMatches();
     protected DatabaseReference ref;
 
-    public AbstractModule(IDatabaseMatcher dbMatcher, ContextMatches contextMatches, FileMatches fileMatches,
+    public AbstractModule(ContextMatches contextMatches, FileMatches fileMatches,
             DatabaseReference ref) {
         super();
-        this.dbMatcher = dbMatcher;
         this.contextMatches = contextMatches;
         this.fileMatches = fileMatches;
         this.ref = ref;
@@ -53,16 +49,12 @@ public abstract class AbstractModule implements IAndrosigModule {
         return fileMatches.getFileFromClassId(index);
     }
 
-    public IDatabaseMatcher getDbMatcher() {
-        return dbMatcher;
-    }
-
     public boolean hasMatchedClass(Integer key) {
-        return dbMatcher.getMatchedClasses().containsKey(key);
+        return fileMatches.containsMatchedClass(key);
     }
 
-    public Map<Integer, String> getMatchedClasses() {
-        return dbMatcher.getMatchedClasses();
+    public boolean containsMatchedClassValue(String className) {
+        return fileMatches.containsMatchedClassValue(className);
     }
 
     public void saveClassMatch(String oldClass, String newClass, String className, String methodName) {

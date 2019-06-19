@@ -9,8 +9,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import com.pnf.androsig.apply.matcher.ContextMatches;
 import com.pnf.androsig.apply.matcher.DatabaseMatcherParameters;
@@ -18,7 +18,6 @@ import com.pnf.androsig.apply.matcher.DatabaseReferenceFile;
 import com.pnf.androsig.apply.matcher.FileMatches;
 import com.pnf.androsig.apply.matcher.HierarchyMatcher;
 import com.pnf.androsig.apply.matcher.IAndrosigModule;
-import com.pnf.androsig.apply.matcher.IDatabaseMatcher;
 import com.pnf.androsig.apply.matcher.MatchingSearch;
 import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.DexHashcodeList;
@@ -38,18 +37,12 @@ import com.pnfsoftware.jeb.util.format.Strings;
  */
 public class MethodFinderModule extends AbstractModule {
 
-    private Map<Integer, String> matchedMethods;
-    private Map<Integer, MethodSignature> matchedSigMethods;
-
     private DatabaseMatcherParameters params;
     private List<IAndrosigModule> modules;
 
-    public MethodFinderModule(IDatabaseMatcher dbMatcher, ContextMatches contextMatches, FileMatches fileMatches,
-            DatabaseReference ref, DatabaseMatcherParameters params, List<IAndrosigModule> modules,
-            Map<Integer, String> matchedMethods, Map<Integer, MethodSignature> matchedSigMethods) {
-        super(dbMatcher, contextMatches, fileMatches, ref);
-        this.matchedMethods = matchedMethods;
-        this.matchedSigMethods = matchedSigMethods;
+    public MethodFinderModule(ContextMatches contextMatches, FileMatches fileMatches,
+            DatabaseReference ref, DatabaseMatcherParameters params, List<IAndrosigModule> modules) {
+        super(contextMatches, fileMatches, ref);
         this.params = params;
         this.modules = modules;
     }
@@ -62,8 +55,7 @@ public class MethodFinderModule extends AbstractModule {
     public Map<Integer, String> postProcessRenameClasses(IDexUnit dex, DexHashcodeList dexHashCodeList,
             boolean firstRound) {
         // maybe more parameter matches for method signatures (where only shorty matched previously)
-        Map<Integer, String> matchedClasses = getMatchedClasses();
-        for(Entry<Integer, String> entry: matchedClasses.entrySet()) {
+        for(Entry<Integer, String> entry: fileMatches.entrySetMatchedClasses()) {
             IDexClass eClass = dex.getClass(entry.getKey());
             if(eClass == null) {
                 // class not loaded in dex (maybe in another dex)
@@ -82,7 +74,7 @@ public class MethodFinderModule extends AbstractModule {
             String className = entry.getValue(); //eClass.getSignature(true); // watch out!! if class was not renamed (for example, anonymous classes)
 
             boolean safe = false;
-            MatchingSearch search = new MatchingSearch(getDbMatcher(), dex, dexHashCodeList, ref, params, fileMatches,
+            MatchingSearch search = new MatchingSearch(dex, dexHashCodeList, ref, params, fileMatches,
                     modules, firstRound, false, safe);
             List<MethodSignature> alreadyMatches = getAlreadyMatched(dex, className, methods, search, refFile);
             int matchedMethodsSize = alreadyMatches.size();
@@ -90,7 +82,7 @@ public class MethodFinderModule extends AbstractModule {
                 List<DatabaseReferenceFile> files = null;
                 matchedMethodsSize = alreadyMatches.size();
                 for(IDexMethod eMethod: methods) {
-                    if(!eMethod.isInternal() || matchedMethods.containsKey(eMethod.getIndex())) {
+                    if(!eMethod.isInternal() || fileMatches.containsMatchedMethod(eMethod)) {
                         continue;
                     }
                     List<? extends IInstruction> instructions = eMethod.getInstructions();
@@ -182,8 +174,7 @@ public class MethodFinderModule extends AbstractModule {
                     if(!Strings.isBlank(methodNameMerged)) {//&& !eMethod.getName(true).equals(methodName)) {
                         if(strArrays.size() == 1) {
                             MethodSignature strArray = strArrays.get(0);
-                            matchedMethods.put(eMethod.getIndex(), methodNameMerged);
-                            matchedSigMethods.put(eMethod.getIndex(), strArray);
+                            fileMatches.addMatchedMethod(eMethod.getIndex(), strArray);
                             alreadyMatches.add(strArray);
 
                             // postprocess: reinject class
@@ -198,7 +189,7 @@ public class MethodFinderModule extends AbstractModule {
                 }
                 if(matchedMethodsSize == alreadyMatches.size() && !safe) {
                     safe = true;
-                    search = new MatchingSearch(getDbMatcher(), dex, dexHashCodeList, ref, params, fileMatches, modules,
+                    search = new MatchingSearch(dex, dexHashCodeList, ref, params, fileMatches, modules,
                             firstRound, false, safe);
                     matchedMethodsSize++;
                 }
@@ -273,18 +264,18 @@ public class MethodFinderModule extends AbstractModule {
             MatchingSearch search, DatabaseReferenceFile file) {
         List<MethodSignature> alreadyMatches = new ArrayList<>();
         for(IDexMethod eMethod: methods) {
-            String methodName = matchedMethods.get(eMethod.getIndex());
+            String methodName = fileMatches.getMatchedMethod(eMethod);
             if(methodName == null) {
                 continue;
             }
-            MethodSignature ms = matchedSigMethods.get(eMethod.getIndex());
+            MethodSignature ms = fileMatches.getMatchedSigMethod(eMethod);
             if(ms == null) {
                 // better to update matchedSigMethods (to retrieve callers on postProcessMethods)
                 if(file != null) {
                     ms = search.findMethodMatch(file, className, eMethod, methodName);
                 }
                 if(ms != null) {
-                    matchedSigMethods.put(eMethod.getIndex(), ms);
+                    fileMatches.bindMatchedSigMethod(eMethod, ms);
                 }
                 else {
                     IDexPrototype proto = dex.getPrototypes().get(eMethod.getPrototypeIndex());

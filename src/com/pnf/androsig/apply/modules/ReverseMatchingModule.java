@@ -19,7 +19,6 @@ import com.pnf.androsig.apply.matcher.DatabaseMatcherParameters;
 import com.pnf.androsig.apply.matcher.DatabaseReferenceFile;
 import com.pnf.androsig.apply.matcher.FileMatches;
 import com.pnf.androsig.apply.matcher.IAndrosigModule;
-import com.pnf.androsig.apply.matcher.IDatabaseMatcher;
 import com.pnf.androsig.apply.matcher.MatchingSearch;
 import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.DexHashcodeList;
@@ -40,9 +39,9 @@ public class ReverseMatchingModule extends AbstractModule {
     private DatabaseMatcherParameters params;
     private List<IAndrosigModule> modules;
 
-    public ReverseMatchingModule(IDatabaseMatcher dbMatcher, ContextMatches contextMatches, FileMatches fileMatches,
+    public ReverseMatchingModule(ContextMatches contextMatches, FileMatches fileMatches,
             DatabaseReference ref, DatabaseMatcherParameters params, List<IAndrosigModule> modules) {
-        super(dbMatcher, contextMatches, fileMatches, ref);
+        super(contextMatches, fileMatches, ref);
         this.params = params;
         this.modules = modules;
     }
@@ -57,7 +56,7 @@ public class ReverseMatchingModule extends AbstractModule {
         if(!firstRound) {
             // search in used files if there are matching class that can apply to current project
             Map<DatabaseReferenceFile, List<ClassInfo>> mostUsed = getMostUsedFiles();
-            MatchingSearch mSearch = new MatchingSearch(getDbMatcher(), dex, dexHashCodeList, ref, params, fileMatches,
+            MatchingSearch mSearch = new MatchingSearch(dex, dexHashCodeList, ref, params, fileMatches,
                     modules, firstRound, false, true);
             List<? extends IDexClass> classes = dex.getClasses();
             for(Entry<DatabaseReferenceFile, List<ClassInfo>> entry: mostUsed.entrySet()) {
@@ -168,7 +167,7 @@ public class ReverseMatchingModule extends AbstractModule {
     }
 
     private ClassInfo buildClassInfo(DatabaseReferenceFile refFile, String classname) {
-        if(getMatchedClasses().containsValue(classname)) {
+        if(containsMatchedClassValue(classname)) {
             return null;
         }
         List<MethodSignature> signatures = getSignaturesForClassname(refFile, classname);
@@ -187,7 +186,7 @@ public class ReverseMatchingModule extends AbstractModule {
 
     private Map<DatabaseReferenceFile, List<ClassInfo>> getMostUsedFiles() {
         Map<DatabaseReferenceFile, Integer> fileOccurences = new HashMap<>();
-        for(Entry<Integer, String> entry: getMatchedClasses().entrySet()) {
+        for(Entry<Integer, String> entry: fileMatches.entrySetMatchedClasses()) {
             DatabaseReferenceFile refFile = getFileFromClassId(entry.getKey());
             if(refFile != null) {
                 Integer occ = fileOccurences.get(refFile);

@@ -33,12 +33,58 @@ import com.pnfsoftware.jeb.util.format.Strings;
  */
 public class MatchingSearch {
     static class InnerMatch {
-        String className;
-        Map<Integer, MethodSignature> classPathMethod = new HashMap<>();
+        private String className;
+        private Map<Integer, MethodSignature> classPathMethod = new HashMap<>();
+        private Set<MethodSignature> distinctMethods = new HashSet<>();
         String file;
         List<Integer> doNotRenameIndexes = new ArrayList<>();
         public boolean oneMatch;
         public DatabaseReferenceFile refFile;
+
+        public InnerMatch(String className, String file) {
+            this.className = className;
+            this.file = file;
+        }
+
+        public String getCname() {
+            return className;
+        }
+
+        public Collection<MethodSignature> getUsedMethodSignatures() {
+            return classPathMethod.values();
+        }
+
+        public Set<Integer> getMatchedMethodIndexes() {
+            return classPathMethod.keySet();
+        }
+
+        public Set<Entry<Integer, MethodSignature>> entrySet() {
+            return classPathMethod.entrySet();
+        }
+
+        public boolean containsMethod(Integer key) {
+            return classPathMethod.containsKey(key);
+        }
+
+        public int methodsSize() {
+            return classPathMethod.size();
+        }
+
+        // TODO maybe more restrictive here to reduce false positive
+        public boolean addMethod(Integer key, MethodSignature ms) {
+            if(classPathMethod.containsKey(key)) {
+                //return false;
+            }
+            if(distinctMethods.contains(ms)) {
+                //return false;
+            }
+            if(ms.getMname().isEmpty()) {
+                //return false;
+            }
+            classPathMethod.put(key, ms);
+            distinctMethods.add(ms);
+            return true;
+        }
 
         public void validateMethods() {
             Set<String> duplicated = new HashSet<>();
@@ -134,7 +180,6 @@ public class MatchingSearch {
         }
     }
 
-    private IDatabaseMatcher dbMatcher;
     private IDexUnit dex;
     private DexHashcodeList dexHashCodeList;
     private DatabaseReference ref;
@@ -147,10 +192,9 @@ public class MatchingSearch {
 
     private Map<String, Map<String, InnerMatch>> fileCandidates = new HashMap<>(); // file -> (classname->count)
 
-    public MatchingSearch(IDatabaseMatcher dbMatcher, IDexUnit dex, DexHashcodeList dexHashCodeList,
+    public MatchingSearch(IDexUnit dex, DexHashcodeList dexHashCodeList,
             DatabaseReference ref, DatabaseMatcherParameters params, FileMatches fileMatches,
             List<IAndrosigModule> modules, boolean firstRound, boolean firstPass, boolean safe) {
-        this.dbMatcher = dbMatcher;
         this.dex = dex;
         this.dexHashCodeList = dexHashCodeList;
         this.ref = ref;
@@ -171,9 +215,8 @@ public class MatchingSearch {
         return sigLine;
     }
 
-    public void processInnerClass(DatabaseReferenceFile file, Map<Integer, String> matchedMethods, IDexClass eClass,
-            List<? extends IDexMethod> methods, String innerClass, int innerLevel,
-            List<MethodSignature> compatibleSignatures) {
+    public void processInnerClass(DatabaseReferenceFile file, IDexClass eClass, List<? extends IDexMethod> methods,
+            String innerClass, int innerLevel, List<MethodSignature> compatibleSignatures) {
         for(IDexMethod eMethod: methods) {
             if(!eMethod.isInternal()) {
                 continue;
@@ -207,7 +250,7 @@ public class MatchingSearch {
 
                     sigLine = compatibleSignatures.stream()
                             .filter(s -> isCompatibleSignature(s, SignatureCheck.PROTOTYPE_STRICT, shorty, prototypes,
-                                    eMethod, null))
+                                    eMethod))
                             .collect(Collectors.toList());
                     String params1 = DexUtilLocal.extractParamsFromSignature(prototypes);
                     List<String> paramList = DexUtilLocal.parseSignatureParameters(params1);
@@ -220,8 +263,8 @@ public class MatchingSearch {
             if(sigLine == null || sigLine.isEmpty()) {
                 continue;
             }
-            if(matchedMethods.containsKey(eMethod.getIndex())) {
-                String mname = matchedMethods.get(eMethod.getIndex());
+            String mname = fileMatches.getMatchedMethod(eMethod);
+            if(mname != null) {
                 sigLine = sigLine.stream().filter(s -> mname.equals(s.getMname())).collect(Collectors.toList());
                 if(sigLine.isEmpty()) {
                     continue;
@@ -237,14 +280,14 @@ public class MatchingSearch {
         }
     }
 
-    public boolean processClass(IMatcherValidation validation, Map<Integer, String> matchedMethods,
-            IDexClass eClass, List<? extends IDexMethod> methods, int innerLevel) {
+    public boolean processClass(IMatcherValidation validation, IDexClass eClass, List<? extends IDexMethod> methods,
+            int innerLevel) {
         List<String> validFiles = getValidFiles(validation, eClass, methods);
-        return processClass(validation, matchedMethods, eClass, methods, innerLevel, validFiles);
+        return processClass(validation, eClass, methods, innerLevel, validFiles);
     }
 
-    public boolean processClass(IMatcherValidation validation, Map<Integer, String> matchedMethods, IDexClass eClass,
-            List<? extends IDexMethod> methods, int innerLevel, List<String> validFiles) {
+    public boolean processClass(IMatcherValidation validation, IDexClass eClass, List<? extends IDexMethod> methods,
+            int innerLevel, List<String> validFiles) {
         // quick win: to avoid loading all files, consider first if valid in best case
         // meaning: if all methods really match (without looking at prototypes)
         if(!firstRound && !firstPass && validFiles.size() > 1) {
@@ -292,8 +335,8 @@ public class MatchingSearch {
                     if(sigLines == null || sigLines.isEmpty()) {
                         continue;
                     }
-                    if (matchedMethods.containsKey(eMethod.getIndex())) {
-                        String mname = matchedMethods.get(eMethod.getIndex());
+                    String mname = fileMatches.getMatchedMethod(eMethod);
+                    if(mname != null) {
                         sigLines = sigLines.stream().filter(s -> mname.equals(s.getMname())).collect(Collectors.toList());
                         if(sigLines.isEmpty()) {
                             continue;
@@ -326,8 +369,8 @@ public class MatchingSearch {
                         if(sigLines == null || sigLines.isEmpty()) {
                             continue;
                         }
-                        if(matchedMethods.containsKey(eMethod.getIndex())) {
-                            String mname = matchedMethods.get(eMethod.getIndex());
+                        String mname = fileMatches.getMatchedMethod(eMethod);
+                        if(mname != null) {
                             sigLines = sigLines.stream().filter(s -> mname.equals(s.getMname()))
                                     .collect(Collectors.toList());
                             if(sigLines.isEmpty()) {
@@ -418,7 +461,7 @@ public class MatchingSearch {
         // One class has several same sigs
         List<MethodSignature> realCandidates = elts.stream()
                 .filter(strArray -> isCompatibleSignature(strArray, SignatureCheck.PROTOTYPE_COMPATIBLE, shorty,
-                        prototype, null))
+                        prototype))
                 .collect(Collectors.toList());
         if(!realCandidates.isEmpty()) {
             List<MethodSignature> strArrays = mergeSignaturesPerClass(realCandidates);
@@ -429,11 +472,9 @@ public class MatchingSearch {
                 }
                 InnerMatch inner = classes.get(className);
                 if(inner == null) {
-                    inner = new InnerMatch();
-                    inner.className = className;
-                    inner.file = file;
+                    inner = new InnerMatch(className, file);
                 }
-                inner.classPathMethod.put(eMethod.getIndex(), strArray);
+                inner.addMethod(eMethod.getIndex(), strArray);
                 if(realCandidates.size() > 1) {
                     // we can not establish which method is the good one
                     // however, it is good to report that a matching was found (for percentage matching instructions)
@@ -522,15 +563,15 @@ public class MatchingSearch {
         return null;
     }
 
-    private static List<MethodSignature> findMethodNames(Map<Integer, String> matchedClasses,
-            List<MethodSignature> sigs, SignatureCheck check, String prototypes, String shorty,
-            String classPath, Collection<MethodSignature> alreadyProcessedMethods, IDexMethod eMethod) {
+    private List<MethodSignature> findMethodNames(List<MethodSignature> sigs, SignatureCheck check,
+            String prototypes, String shorty, String classPath, Collection<MethodSignature> alreadyProcessedMethods,
+            IDexMethod eMethod) {
         List<MethodSignature> results = new ArrayList<>();
         for(MethodSignature strArray: sigs) {
             if(!strArray.getCname().equals(classPath)) {
                 continue;
             }
-            if(!isCompatibleSignature(strArray, check, shorty, prototypes, eMethod, matchedClasses)) {
+            if(!isCompatibleSignature(strArray, check, shorty, prototypes, eMethod)) {
                 continue;
             }
             if(isAlreadyProcessed(strArray, alreadyProcessedMethods, check == SignatureCheck.PROTOTYPE_STRICT,
@@ -560,7 +601,7 @@ public class MatchingSearch {
     private MethodSignature findMethodName(List<MethodSignature> sigs, SignatureCheck check, String prototypes,
             String shorty, String classPath, Collection<MethodSignature> alreadyProcessedMethods,
             IDexMethod eMethod) {
-        List<MethodSignature> results = findMethodNames(dbMatcher.getMatchedClasses(), sigs, check, prototypes, shorty,
+        List<MethodSignature> results = findMethodNames(sigs, check, prototypes, shorty,
                 classPath, alreadyProcessedMethods, eMethod);
         if(results.size() == 1) {
             return results.get(0);
@@ -593,9 +634,9 @@ public class MatchingSearch {
         PROTOTYPE_STRICT, PROTOTYPE_COMPATIBLE, SHORTY
     }
 
-    private static boolean isCompatibleSignature(MethodSignature strArray, SignatureCheck check, String shorty,
-            String prototypes, IDexMethod eMethod, Map<Integer, String> matchedClasses) {
-        if(!isCompatibleSignature(strArray, check, shorty, prototypes, matchedClasses)) {
+    private boolean isCompatibleSignature(MethodSignature strArray, SignatureCheck check, String shorty,
+            String prototypes, IDexMethod eMethod) {
+        if(!isCompatibleSignature(strArray, check, shorty, prototypes)) {
             return false;
         }
 
@@ -608,8 +649,8 @@ public class MatchingSearch {
         return DexUtilLocal.isMethodCompatible(methodName, strArray.getMname());
     }
 
-    private static boolean isCompatibleSignature(MethodSignature strArray, SignatureCheck check, String shorty,
-            String prototype, Map<Integer, String> matchedClasses) {
+    private boolean isCompatibleSignature(MethodSignature strArray, SignatureCheck check, String shorty,
+            String prototype) {
         switch(check) {
         case PROTOTYPE_STRICT:
             return strArray.getPrototype().equals(prototype);
@@ -622,15 +663,14 @@ public class MatchingSearch {
             if(!strArray.getShorty().equals(shorty)) {
                 return false;
             }
-            return isCompatiblePrototypeSignature(strArray, prototype, matchedClasses);
+            return isCompatiblePrototypeSignature(strArray, prototype);
         default:
             break;
         }
         return false;
     }
 
-    private static boolean isCompatiblePrototypeSignature(MethodSignature strArray, String prototypes,
-            Map<Integer, String> matchedClasses) {
+    private boolean isCompatiblePrototypeSignature(MethodSignature strArray, String prototypes) {
         String returnVal1 = prototypes.substring(prototypes.indexOf(")") + 1);
         String originalReturnVal = strArray.getPrototype().substring(strArray.getPrototype().indexOf(")") + 1);
         if(!DexUtilLocal.isCompatibleClasses(returnVal1, originalReturnVal)) {
@@ -646,7 +686,7 @@ public class MatchingSearch {
             if(paramI.equals(originalParamI)) {
                 continue;
             }
-            if(matchedClasses != null && matchedClasses.containsValue(paramI)) {
+            if(fileMatches.containsMatchedClassValue(paramI)) {
                 // not equals, already renamed => either wrong renaming (should not happen often) or not valid candidate
                 return false;
             }
