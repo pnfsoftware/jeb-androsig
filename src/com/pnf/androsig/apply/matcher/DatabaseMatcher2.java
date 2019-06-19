@@ -6,10 +6,10 @@
 package com.pnf.androsig.apply.matcher;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,11 +81,16 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
 class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherValidation {
     private final ILogger logger = GlobalLog.getLogger(DatabaseMatcher2.class);
 
+    /** user parameters */
     private DatabaseMatcherParameters params;
+
     private DatabaseReference ref;
+
     // class index --- classPath_sig
     private Map<Integer, String> matchedClasses = new LinkedHashMap<>();
+    // class which should not be checked again
     private Set<Integer> ignoredClasses = new HashSet<>();
+    // classes that seems to match but are not fully determined
     private Set<Integer> whiteListClasses = new HashSet<>();
 
     // method index --- methodName_sig
@@ -102,8 +107,10 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
     // Check duplicate methods (same as dupClass)
     private Map<Integer, ArrayList<Integer>> dupMethods = new HashMap<>();
 
+    /** Cache of total instruction lines per class */
     private Map<Integer, Double> instruCount = new HashMap<>();
 
+    /** Enabled modules */
     private List<IAndrosigModule> modules = new ArrayList<>();
 
     public DatabaseMatcher2(DatabaseMatcherParameters params, DatabaseReference ref) {
@@ -304,28 +311,27 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 if(file != null) {
                     // Retrieve all inner class belonging to parent
                     String innerClass = name.substring(0, name.length() - 1) + "$";
-                    List<MethodSignature> compatibleSignatures = ref.getSignaturesForClassname(file, innerClass, false);
+                    List<MethodSignature> innerSignatures = ref.getSignaturesForClassname(file, innerClass, false);
                     HierarchyMatcher hierarchy = new HierarchyMatcher(eClass);
 
                     // is there only one class that can match?
-                    List<MethodSignature> candidates = MatchingSearch.mergeSignaturesPerClass(compatibleSignatures);
-                    candidates = filterVersions(candidates, file);
+                    Set<String> candidates = innerSignatures.stream().map(s -> s.getCname())
+                            .collect(Collectors.toSet());
                     candidates = candidates.stream()
-                            .filter(inner -> isInnerClassCandidate(dex, file, hierarchy, inner, eClass, innerLevel))
-                            .collect(Collectors.toList());
+                            .filter(cname -> isInnerClassCandidate(dex, file, hierarchy, cname, eClass, innerLevel))
+                            .collect(Collectors.toSet());
                     if(candidates.size() == 1) {
                         // bypass f validation
-                        contextMatches.saveClassMatch(originalSignature, candidates.get(0).getCname(), name);
+                        contextMatches.saveClassMatch(originalSignature, candidates.iterator().next(), name);
                         return null;
                     }
 
-
-                    compatibleSignatures = compatibleSignatures.stream()
-                            .filter(inner -> isInnerClassCandidate(dex, file, hierarchy, inner, eClass, innerLevel))
+                    innerSignatures = innerSignatures.stream()
+                            .filter(inner -> isInnerClassCandidate(dex, file, hierarchy, inner.getCname(), eClass,
+                                    innerLevel))
                             .collect(Collectors.toList());
-                    compatibleSignatures = filterVersions(compatibleSignatures, file);
                     fileCandidates.processInnerClass(file, matchedMethods, eClass, methods, innerClass, innerLevel,
-                            compatibleSignatures);
+                            innerSignatures);
                     ignoredClasses.remove(eClass.getIndex());
                 }
                 else {
@@ -343,8 +349,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         if(ignoredClasses.contains(eClass.getIndex())) {
             return null;
         }
-        // First round: attempt to match class in its globality
-        // Look for candidate files
+        // First round: attempt to match a whole class
+        // Look for candidate files: only uses hashcodes + prototype/compatible prototype
         boolean hasCandidates = true;
         if(fileCandidates.isEmpty()) {
             hasCandidates = fileCandidates.processClass(this, matchedMethods, eClass, methods, innerLevel);
@@ -369,10 +375,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         if(bestCandidates.isEmpty()) {
             return null;
         }
-        else if(bestCandidates.size() == 1) {
-            bestCandidate = bestCandidates.get(0);
-        }
-        else {
+        else if(bestCandidates.size() != 1) {
             // Find total number of methods per class and compare with methods.size()
             TreeMap<Integer, Set<InnerMatch>> diffMatch = new TreeMap<>();
             for(InnerMatch cand: bestCandidates) {
@@ -400,58 +403,58 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 }
             }
             bestCandidates = new ArrayList<>(diffMatch.get(diffMatch.firstKey()));
+        }
 
-            if(bestCandidates.size() == 1) {
-                bestCandidate = bestCandidates.get(0);
-            }
-            else {
-                if(!firstRound) {
-                    String className = null;
-                    for(InnerMatch cand: bestCandidates) {
-                        if(className == null) {
-                            className = cand.className;
-                        }
-                        else if(!className.equals(cand.className)) {
-                            className = null;
-                            break;
+        if(bestCandidates.size() == 1) {
+            bestCandidate = bestCandidates.get(0);
+        }
+        else {
+            if(!firstRound) {
+                String className = null;
+                for(InnerMatch cand: bestCandidates) {
+                    if(className == null) {
+                        className = cand.className;
+                    }
+                    else if(!className.equals(cand.className)) {
+                        className = null;
+                        break;
+                    }
+                }
+                if(className != null) {
+                    // same classname (can happen with different versions of same lib)
+                    DatabaseReferenceFile bestFile = fileMatches.getMatchedClassFile(dex, eClass, className, ref);
+                    if(bestFile != null) {
+                        for(InnerMatch cand: bestCandidates) {
+                            if(cand.file.equals(bestFile.file)) {
+                                bestCandidate = cand;
+                                break;
+                            }
                         }
                     }
-                    if(className != null) {
-                        // same classname (can happen with different versions of same lib)
-                        DatabaseReferenceFile bestFile = fileMatches.getMatchedClassFile(dex, eClass, className, ref);
-                        if(bestFile != null) {
-                            for(InnerMatch cand: bestCandidates) {
-                                if(cand.file.equals(bestFile.file)) {
-                                    bestCandidate = cand;
-                                    break;
-                                }
+                    else {
+                        whiteListClasses.add(eClass.getIndex());
+                        List<InnerMatch> newBestCandidates = new ArrayList<>();
+                        for(InnerMatch cand: bestCandidates) {
+                            if(f(dex, eClass, new ArrayList<>(cand.classPathMethod.keySet())) == null) {
+                                newBestCandidates.add(cand);
                             }
+                        }
+                        if(newBestCandidates.size() == 1) {
+                            bestCandidate = newBestCandidates.iterator().next();
                         }
                         else {
-                            whiteListClasses.add(eClass.getIndex());
-                            Set<InnerMatch> newBestCandidates = new HashSet<>();
-                            for(InnerMatch cand: bestCandidates) {
-                                if(f(dex, eClass, new ArrayList<>(cand.classPathMethod.keySet())) == null) {
-                                    newBestCandidates.add(cand);
-                                }
-                            }
-                            if(newBestCandidates.size() == 1) {
-                                bestCandidate = newBestCandidates.iterator().next();
-                            }
-                            else {
-                                if(!unique) {
-                                    if(newBestCandidates.size() > 1) {
-                                        contextMatches.saveClassMatchUnkownFile(originalSignature, className);
-                                    }
+                            if(!unique) {
+                                if(newBestCandidates.size() > 1) {
+                                    contextMatches.saveClassMatchUnkownFile(originalSignature, className);
                                 }
                             }
                         }
                     }
                 }
-                // too much error-prone: must at least found same classname
-                if(bestCandidate == null) {
-                    return null;
-                }
+            }
+            // too much error-prone: must at least found same classname
+            if(bestCandidate == null) {
+                return null;
             }
         }
         if(bestCandidate.oneMatch) {
@@ -459,9 +462,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 return null;
             }
             // seriously check matching class: may be a false positive
-            List<MethodSignature> allMethods = ref.getSignaturesForClassname(bestCandidate.file,
+            List<MethodSignature> allMethods = ref.getSignaturesForClassname(bestCandidate.refFile,
                     bestCandidate.className, true);
-            allMethods = filterVersions(allMethods, bestCandidate.refFile);
             Set<String> methodNames = allMethods.stream().map(m -> m.getMname() + m.getPrototype())
                     .collect(Collectors.toSet());
             if(methodNames.size() != bestCandidate.classPathMethod.size()) {
@@ -527,7 +529,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                     else if(!firstPass && !cand.oneMatch) {
                         if(sigs == null) {
                             // lazy init
-                            sigs = ref.getSignaturesForClassname(cand.file, cand.className, true);
+                            sigs = ref.getSignaturesForClassname(cand.refFile, cand.className, true);
                         }
                         strArray = fileCandidates.findMethodName(sigs, cand.className, new ArrayList<>(), eMethod);
                         if(strArray != null && strArray.getMname() != null && strArray.getPrototype() != null) {
@@ -540,42 +542,22 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
     }
 
     private boolean isInnerClassCandidate(IDexUnit dex, DatabaseReferenceFile file, HierarchyMatcher hierarchy,
-            MethodSignature inner, IDexClass eClass, int innerLevel) {
-        IDexClass innerCl = dex.getClass(inner.getCname());
+            String classname, IDexClass eClass, int innerLevel) {
+        IDexClass innerCl = dex.getClass(classname);
         // remove classes that already matched
         if(innerCl != null && matchedClasses.containsKey(innerCl.getIndex())) {
             return false;
         }
-        if(DexUtilLocal.isAnonymous(eClass) != DexUtilLocal.isAnonymous(inner.getCname())) {
+        if(DexUtilLocal.isAnonymous(eClass) != DexUtilLocal.isAnonymous(classname)) {
             return false;
         }
-        if(innerLevel != DexUtilLocal.getInnerClassLevel(inner.getCname())) {
+        if(innerLevel != DexUtilLocal.getInnerClassLevel(classname)) {
             return false;
         }
-        if(!hierarchy.isCompatible(ref, file, inner.getCname())) {
+        if(!hierarchy.isCompatible(ref, file, classname)) {
             return false;
         }
         return true;
-    }
-
-    private List<MethodSignature> filterVersions(List<MethodSignature> candidates, DatabaseReferenceFile refFile) {
-        if(refFile == null || refFile.hasNoVersion()) {
-            return candidates;
-        }
-        List<MethodSignature> newCandidates = new ArrayList<>();
-        for(MethodSignature cand: candidates) {
-            for(String v: refFile.getAvailableVersions()) {
-                String[] versionsArray = cand.getVersions();
-                if(versionsArray == null) {
-                    return candidates;
-                }
-                if(Arrays.asList(versionsArray).contains(v)) {
-                    newCandidates.add(cand);
-                    break;
-                }
-            }
-        }
-        return newCandidates;
     }
 
     private static List<InnerMatch> filterMaxMethodsMatch(MatchingSearch fileCandidates) {

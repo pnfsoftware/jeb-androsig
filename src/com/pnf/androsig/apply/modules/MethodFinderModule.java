@@ -251,7 +251,7 @@ public class MethodFinderModule extends AbstractModule {
                             }
                         }
                     }
-                } // else TODO pick right version or parent data not available
+                } // else wait for right version or parent data not available
             }
         }
 

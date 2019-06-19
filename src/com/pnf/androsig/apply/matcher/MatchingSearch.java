@@ -633,44 +633,8 @@ public class MatchingSearch {
     }
 
     private void filterList(IDexMethod eMethod, String prototypes, List<MethodSignature> results) {
-        // only on post processing
-        // firstly, filter versions
-        DatabaseReferenceFile f = fileMatches.getFileFromClass(dex, eMethod.getClassType().getImplementingClass());
-        if(f == null) {
-            return; // wait for post process to retrieve correct file
-        }
-        Set<MethodSignature> filtered = new HashSet<>();
-        List<List<String>> preferedOrderList = fileMatches.getOrderedVersions(f);
-        boolean found = false;
-        prefered: for(List<String> preferedOrder: preferedOrderList) {
-            // save level signatures
-            for(String prefered: preferedOrder) {
-                for(MethodSignature sig: results) {
-                    String[] versionsArray = sig.getVersions();
-                    if(versionsArray == null) {
-                        filtered.clear();
-                        break prefered;
-                    }
-                    if(Arrays.asList(versionsArray).contains(prefered)) {
-                        found = true;
-                        filtered.add(sig);
-                    }
-                }
-            }
-            if(found) {
-                break;
-            }
-        }
-        if(!filtered.isEmpty()) {
-            results.clear();
-            results.addAll(filtered);
-            if(results.size() == 1) {
-                return;
-            }
-        }
-
         for(IAndrosigModule module: modules) {
-            filtered = module.filterList(dex, eMethod, results);
+            Set<MethodSignature> filtered = module.filterList(dex, eMethod, results);
             if(filtered != null && !filtered.isEmpty()) {
                 results.clear();
                 results.addAll(filtered);
