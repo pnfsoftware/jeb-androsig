@@ -258,21 +258,6 @@ public class FileMatches {
         return ref.getSignatureLines(refFile, hashcode, tight);
     }
 
-    @Deprecated
-    public void addMatchedClass(IDexClass cl, String classname) {
-        if(matchedClasses.get(cl.getIndex()) != null) {
-            logger.error("Conflict: Try to replace class %s", matchedClasses.get(cl.getIndex()));
-            return;
-        }
-        if(matchedClasses.containsValue(classname)) {
-            logger.error("Conflict: Try to bind class %s to %s which is already bind to ", classname,
-                    cl.getSignature(false), cl.getSignature(true));
-            return;
-        }
-        matchedClasses.put(cl.getIndex(), classname);
-        removeClassFiles(cl);
-    }
-
     public void addMatchedClass(IDexClass cl, String classname, List<String> files,
             Collection<MethodSignature> usedMethodSignatures) {
         if(matchedClasses.get(cl.getIndex()) != null) {
@@ -370,7 +355,7 @@ public class FileMatches {
             // shorty or several matched: can not reinject classes anyway
             return;
         }
-        
+
         IDexPrototype proto = unit.getPrototypes().get(m.getPrototypeIndex());
         String prototypes = proto.generate(true);
         //if(prototypes.equals(sig.getPrototype())) {

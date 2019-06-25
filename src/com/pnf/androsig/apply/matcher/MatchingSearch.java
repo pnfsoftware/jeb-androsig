@@ -66,6 +66,10 @@ public class MatchingSearch {
             return classPathMethod.containsKey(key);
         }
 
+        public MethodSignature getMethod(Integer key) {
+            return classPathMethod.get(key);
+        }
+
         public int methodsSize() {
             return classPathMethod.size();
         }
@@ -780,6 +784,38 @@ public class MatchingSearch {
 
     public Set<Entry<String, Map<String, InnerMatch>>> entrySet() {
         return fileCandidates.entrySet();
+    }
+
+    public void filterClassName(String hintName) {
+        List<String> toRemove = new ArrayList<>();
+        for(Entry<String, Map<String, InnerMatch>> entry: entrySet()) {
+            InnerMatch m = entry.getValue().get(hintName);
+            if(m == null) {
+                toRemove.add(entry.getKey());
+            }
+            else if(entry.getValue().size() != 1) {
+                entry.getValue().clear();
+                entry.getValue().put(hintName, m);
+            }
+        }
+        for(String r: toRemove) {
+            fileCandidates.remove(r);
+        }
+
+
+        if(fileCandidates.isEmpty()) {
+            List<String> files = ref.getFilesContainingClass(hintName);
+            if(files == null) {
+                // file not in lib
+                return;
+            }
+            for(String f: files) {
+                InnerMatch m = new InnerMatch(hintName, f);
+                Map<String, InnerMatch> value = new HashMap<>();
+                value.put(hintName, m);
+                fileCandidates.put(f, value);
+            }
+        }
     }
 
 }

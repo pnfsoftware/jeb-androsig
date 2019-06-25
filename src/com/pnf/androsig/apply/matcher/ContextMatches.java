@@ -6,6 +6,7 @@
 package com.pnf.androsig.apply.matcher;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -185,6 +186,14 @@ public class ContextMatches {
 
     public Set<Entry<String, String>> entrySet() {
         return contextMatches.entrySet();
+    }
+
+    public Set<String> keySet() {
+        return new HashSet<>(contextMatches.keySet());
+    }
+
+    public String get(String key) {
+        return contextMatches.get(key);
     }
 
     public Set<Entry<Integer, String>> methodsEntrySet() {
