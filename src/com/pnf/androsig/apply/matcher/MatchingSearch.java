@@ -36,18 +36,36 @@ public class MatchingSearch {
         private String className;
         private Map<Integer, MethodSignature> classPathMethod = new HashMap<>();
         private Set<MethodSignature> distinctMethods = new HashSet<>();
-        String file;
+        private List<String> files;
         List<Integer> doNotRenameIndexes = new ArrayList<>();
         public boolean oneMatch;
-        public DatabaseReferenceFile refFile;
+        private List<DatabaseReferenceFile> refFiles = new ArrayList<>();
 
         public InnerMatch(String className, String file) {
             this.className = className;
-            this.file = file;
+            this.files = new ArrayList<>();
+            files.add(file);
+        }
+
+        public InnerMatch(String className, List<String> files) {
+            this.className = className;
+            this.files = files;
         }
 
         public String getCname() {
             return className;
+        }
+
+        public List<String> getFiles() {
+            return files;
+        }
+
+        public List<DatabaseReferenceFile> getRefFiles() {
+            return refFiles;
+        }
+
+        public DatabaseReferenceFile getFirstRefFile() {
+            return refFiles.get(0);
         }
 
         public Collection<MethodSignature> getUsedMethodSignatures() {
@@ -146,40 +164,43 @@ public class MatchingSearch {
         }
 
         public void validateVersions() {
-            refFile = new DatabaseReferenceFile(file, null);
-            refFile.mergeVersions(classPathMethod.values());
-            if(refFile.hasNoVersion()) {
-                return;
-            }
-            List<List<String>> preferedOrderList = refFile.getOrderedVersions();
-            if(preferedOrderList == null || preferedOrderList.isEmpty()) {
-                return; //versionless
-            }
-            List<String> versions = preferedOrderList.get(0);
-            List<Integer> illegalMethods = new ArrayList<>();
-            for(Entry<Integer, MethodSignature> method: classPathMethod.entrySet()) {
-                String[] versionsArray = method.getValue().getVersions();
-                if(versionsArray == null) {
+            for(String file: files) {
+                DatabaseReferenceFile refFile = new DatabaseReferenceFile(file, null);
+                refFiles.add(refFile);
+                refFile.mergeVersions(classPathMethod.values());
+                if(refFile.hasNoVersion()) {
                     continue;
                 }
-                boolean found = false;
-                for(String v: versionsArray) {
-                    if(versions.contains(v)) {
-                        found = true;
-                        break;
+                List<List<String>> preferedOrderList = refFile.getOrderedVersions();
+                if(preferedOrderList == null || preferedOrderList.isEmpty()) {
+                    continue; //versionless
+                }
+                List<String> versions = preferedOrderList.get(0);
+                List<Integer> illegalMethods = new ArrayList<>();
+                for(Entry<Integer, MethodSignature> method: classPathMethod.entrySet()) {
+                    String[] versionsArray = method.getValue().getVersions();
+                    if(versionsArray == null) {
+                        continue;
+                    }
+                    boolean found = false;
+                    for(String v: versionsArray) {
+                        if(versions.contains(v)) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if(!found) {
+                        illegalMethods.add(method.getKey());
                     }
                 }
-                if(!found) {
-                    illegalMethods.add(method.getKey());
+                for(Integer illegal: illegalMethods) {
+                    classPathMethod.remove(illegal);
                 }
-            }
-            for(Integer illegal: illegalMethods) {
-                classPathMethod.remove(illegal);
-            }
-            if(!refFile.getMergedVersions().contains(versions.get(0))) {
-                // regenerate, wrong base
-                refFile = new DatabaseReferenceFile(file, null);
-                refFile.mergeVersions(classPathMethod.values());
+                if(!refFile.getMergedVersions().contains(versions.get(0))) {
+                    // regenerate, wrong base
+                    refFile = new DatabaseReferenceFile(files.get(0), null);
+                    refFile.mergeVersions(classPathMethod.values());
+                }
             }
         }
     }

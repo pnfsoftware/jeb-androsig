@@ -239,7 +239,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             }
             if(candidates.size() == 1) {
                 InnerMatch innerMatch = candidates.get(0);
-                fileMatches.addMatchedClass(eClass, innerMatch.getCname(), Arrays.asList(innerMatch.file),
+                fileMatches.addMatchedClass(eClass, innerMatch.getCname(), innerMatch.getFiles(),
                         innerMatch.getUsedMethodSignatures());
             }
             else {
@@ -379,7 +379,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             TreeMap<Integer, Set<InnerMatch>> diffMatch = new TreeMap<>();
             for(InnerMatch cand: bestCandidates) {
                 Map<String, Integer> methodCountPerVersion = new HashMap<>();
-                List<MethodSignature> allTight = ref.getSignaturesForClassname(cand.refFile, cand.getCname(), true);
+                List<MethodSignature> allTight = ref.getSignaturesForClassname(cand.getFirstRefFile(), cand.getCname(),
+                        true);
                 for(MethodSignature tight: allTight) {
                     String[] versions = tight.getVersions();
                     if(versions == null) {
@@ -447,8 +448,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                         else {
                             if(hintName != null || !newBestCandidates.isEmpty()) {
                                 if(!unique) {
-                                    bestCandidates = newBestCandidates;
-                                    bestCandidate = mergeCandidates(bestCandidates);
+                                    bestCandidate = mergeCandidates(newBestCandidates);
                                 }
                                 else {
                                     // file not determined, save the hint
@@ -469,7 +469,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 return null;
             }
             // seriously check matching class: may be a false positive
-            List<MethodSignature> allMethods = ref.getSignaturesForClassname(bestCandidate.refFile,
+            List<MethodSignature> allMethods = ref.getSignaturesForClassname(bestCandidate.getFirstRefFile(),
                     bestCandidate.getCname(), true);
             Set<String> methodNames = allMethods.stream().map(m -> m.getMname() + m.getPrototype())
                     .collect(Collectors.toSet());
@@ -530,7 +530,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         for(Entry<String, Map<String, InnerMatch>> entry: fileCandidates.entrySet()) {
             List<String> toRemove = new ArrayList<>();
             for(Entry<String, InnerMatch> cand: entry.getValue().entrySet()) {
-                if(!hierarchy.isCompatible(ref, cand.getValue().refFile, cand.getValue().getCname())) {
+                if(!hierarchy.isCompatible(ref, cand.getValue().getFirstRefFile(), cand.getValue().getCname())) {
                     toRemove.add(cand.getKey());
                 }
             }
@@ -560,7 +560,14 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             for(InnerMatch cand: entry.getValue().values()) {
                 if(cand.oneMatch || DexUtilLocal.isInnerClass(originalSignature)) {
                     // do not artificially grow easy matches, unless file is in use
-                    if(!this.fileMatches.isSignatureFileUsed(cand.file)) {
+                    boolean signatureUsed = false;
+                    for(String f: cand.getFiles()) {
+                        if(fileMatches.isSignatureFileUsed(f)) {
+                            signatureUsed = true;
+                            break;
+                        }
+                    }
+                    if(!signatureUsed) {
                         continue;
                     }
                 }
@@ -569,7 +576,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                     if(cand.containsMethod(eMethod.getIndex())) {
                         continue;
                     }
-                    MethodSignature strArray = fileCandidates.findMethodMatch(cand.refFile, cand.getCname(),
+                    MethodSignature strArray = fileCandidates.findMethodMatch(cand.getFirstRefFile(), cand.getCname(),
                             cand.getUsedMethodSignatures(), eMethod, true);
                     if(strArray != null) {
                         cand.addMethod(eMethod.getIndex(), strArray);
@@ -577,7 +584,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                     else if(!firstPass && !cand.oneMatch) {
                         if(sigs == null) {
                             // lazy init
-                            sigs = ref.getSignaturesForClassname(cand.refFile, cand.getCname(), true);
+                            sigs = ref.getSignaturesForClassname(cand.getFirstRefFile(), cand.getCname(), true);
                         }
                         strArray = fileCandidates.findMethodName(sigs, cand.getCname(), new ArrayList<>(), eMethod);
                         if(strArray != null && strArray.getMname() != null && strArray.getPrototype() != null) {
@@ -706,8 +713,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             String errorMessage = checkCoverage ? f(unit, eClass, temp1): null;
             if(errorMessage == null) {
                 logger.debug("Found match class: %s from file %s", innerMatch.getCname(),
-                        Strings.join(",", Arrays.asList(innerMatch.file)));
-                fileMatches.addMatchedClass(eClass, innerMatch.getCname(), Arrays.asList(innerMatch.file),
+                        Strings.join(",", innerMatch.getFiles()));
+                fileMatches.addMatchedClass(eClass, innerMatch.getCname(), innerMatch.getFiles(),
                         innerMatch.getUsedMethodSignatures());
                 List<Integer> tempArrayList = dupClasses.get(innerMatch.getCname());
                 if(tempArrayList != null) {
