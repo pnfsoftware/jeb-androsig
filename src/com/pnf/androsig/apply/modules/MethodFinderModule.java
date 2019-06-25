@@ -7,6 +7,7 @@ package com.pnf.androsig.apply.modules;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -62,6 +63,7 @@ public class MethodFinderModule extends AbstractModule {
                 continue;
             }
             DatabaseReferenceFile refFile = fileMatches.getFileFromClass(dex, eClass);
+            Set<DatabaseReferenceFile> refFiles = null;
             if(refFile == null) {
                 // update matchedClassesFile
                 refFile = fileMatches.getMatchedClassFile(dex, eClass, entry.getValue(), ref);
@@ -79,30 +81,27 @@ public class MethodFinderModule extends AbstractModule {
             List<MethodSignature> alreadyMatches = getAlreadyMatched(dex, className, methods, search, refFile);
             int matchedMethodsSize = alreadyMatches.size();
             do {
-                List<DatabaseReferenceFile> files = null;
                 matchedMethodsSize = alreadyMatches.size();
                 for(IDexMethod eMethod: methods) {
                     if(!eMethod.isInternal() || fileMatches.containsMatchedMethod(eMethod)) {
                         continue;
                     }
-                    List<? extends IInstruction> instructions = eMethod.getInstructions();
 
-                    if(files == null) {
+                    if(refFiles == null) {
                         // lazy file init of files
-                        List<String> rawFiles = getCandidateFilesForClass(refFile, className);
-                        if(rawFiles == null) {
-                            // external library (not in signature files): no need to check other methods
+                        if(refFile != null) {
+                            refFiles = new HashSet<>();
+                            refFiles.add(refFile);
+                        }
+                        else {
+                            refFiles = fileMatches.getCandidateFilesFromClass(dex, eClass);
+                        }
+                        if(refFiles == null) {
                             break;
                         }
-                        files = new ArrayList<>();
-                        for(String rf: rawFiles) {
-                            DatabaseReferenceFile f = fileMatches.getFromFilename(rf);
-                            if(f == null) {
-                                f = new DatabaseReferenceFile(rf, null);
-                            }
-                            files.add(f);
-                        }
                     }
+
+                    List<? extends IInstruction> instructions = eMethod.getInstructions();
 
                     String methodNameMerged = "";
                     List<MethodSignature> strArrays = new ArrayList<>();
@@ -114,7 +113,7 @@ public class MethodFinderModule extends AbstractModule {
                         if(mhash_tight == null) {
                             continue;
                         }
-                        for(DatabaseReferenceFile file: files) {
+                        for(DatabaseReferenceFile file: refFiles) {
                             MethodSignature strArray = search.findMethodMatch(file, mhash_tight, prototypes, shorty,
                                     className, alreadyMatches, eMethod, false);
                             if(strArray != null) {
@@ -142,7 +141,7 @@ public class MethodFinderModule extends AbstractModule {
                         // attempt signature matching only
                         methodNameMerged = "";
                         MethodSignature strArray = null;
-                        for(DatabaseReferenceFile file: files) {
+                        for(DatabaseReferenceFile file: refFiles) {
                             List<MethodSignature> sigs = search.getSignaturesForClassname(file, className, true,
                                     eMethod);
                             if(!sigs.isEmpty()) {
@@ -174,13 +173,8 @@ public class MethodFinderModule extends AbstractModule {
                     if(!Strings.isBlank(methodNameMerged)) {//&& !eMethod.getName(true).equals(methodName)) {
                         if(strArrays.size() == 1) {
                             MethodSignature strArray = strArrays.get(0);
-                            fileMatches.addMatchedMethod(eMethod.getIndex(), strArray);
+                            fileMatches.addMatchedMethod(dex, eMethod.getIndex(), strArray);
                             alreadyMatches.add(strArray);
-
-                            // postprocess: reinject class
-                            if(!prototypes.equals(strArray.getPrototype())) {
-                                saveParamMatching(prototypes, strArray.getPrototype(), className, methodNameMerged);
-                            }
                         }
                         else {
                             saveMethodMatch(eMethod.getIndex(), methodNameMerged);
@@ -275,7 +269,7 @@ public class MethodFinderModule extends AbstractModule {
                     ms = search.findMethodMatch(file, className, eMethod, methodName);
                 }
                 if(ms != null) {
-                    fileMatches.bindMatchedSigMethod(eMethod, ms);
+                    fileMatches.bindMatchedSigMethod(dex, eMethod, ms);
                 }
                 else {
                     IDexPrototype proto = dex.getPrototypes().get(eMethod.getPrototypeIndex());
@@ -288,33 +282,4 @@ public class MethodFinderModule extends AbstractModule {
         }
         return alreadyMatches;
     }
-
-    private List<String> getCandidateFilesForClass(DatabaseReferenceFile f, String className) {
-        List<String> files = null;
-        if(f == null) {
-            files = ref.getFilesContainingClass(className);
-            if(files == null) {
-                // external library (not in signature files)
-                return null;
-            }
-            if(files.size() > 1) {
-                // attempt to retrieve only used resources/filter
-                List<String> usedFiles = new ArrayList<>();
-                for(String file: files) {
-                    if(fileMatches.isSignatureFileUsed(file)) {
-                        usedFiles.add(file);
-                    }
-                }
-                if(!usedFiles.isEmpty()) {
-                    files = usedFiles;
-                }
-            }
-        }
-        else {
-            files = new ArrayList<>();
-            files.add(f.file);
-        }
-        return files;
-    }
-
 }

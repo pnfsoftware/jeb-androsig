@@ -6,7 +6,6 @@
 package com.pnf.androsig.apply.matcher;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -22,6 +21,7 @@ import com.pnf.androsig.apply.util.DexUtilLocal;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
+import com.pnfsoftware.jeb.core.units.code.android.dex.IDexPrototype;
 import com.pnfsoftware.jeb.util.logging.GlobalLog;
 import com.pnfsoftware.jeb.util.logging.ILogger;
 
@@ -34,10 +34,13 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
 public class FileMatches {
     private final ILogger logger = GlobalLog.getLogger(FileMatches.class);
 
+    private ContextMatches contextMatches;
+
     private Map<Integer, DatabaseReferenceFile> matchedClassesFile = new HashMap<>();
 
     /** Used files -> list of versions match (with occurrences) */
     private Map<String, DatabaseReferenceFile> usedSigFiles = new HashMap<>();
+    private Map<String, DatabaseReferenceFile> tempSigFiles = new HashMap<>();
 
     // class index --- classPath_sig
     private Map<Integer, String> matchedClasses = new LinkedHashMap<>();
@@ -45,6 +48,13 @@ public class FileMatches {
     // method index --- methodName_sig
     private Map<Integer, String> matchedMethods = new LinkedHashMap<>();
     private Map<Integer, MethodSignature> matchedSigMethods = new HashMap<>();
+
+    /** Extended candidate list, not stable enough (several candidates for same class) */
+    private Map<Integer, Set<DatabaseReferenceFile>> candidateMatchedClassesFile = new HashMap<>();
+
+    public FileMatches(ContextMatches contextMatches) {
+        this.contextMatches = contextMatches;
+    }
 
     public Set<String> getSignatureFileUsed() {
         return usedSigFiles.keySet();
@@ -83,17 +93,80 @@ public class FileMatches {
         return matchedClassesFile.get(index);
     }
 
-    public void addMatchedClassFiles(IDexClass dexClass, String file) {
+    public Set<DatabaseReferenceFile> getCandidateFilesFromClass(IDexUnit dex, IDexClass dexClass) {
+        if(dexClass == null) {
+            return null;
+        }
+        Set<DatabaseReferenceFile> refFiles = candidateMatchedClassesFile.get(dexClass.getIndex());
+        if(refFiles == null) {
+            String signature = dexClass.getSignature(true);
+            if(DexUtilLocal.isInnerClass(signature)) {
+                refFiles = getCandidateFilesFromClass(dex, DexUtilLocal.getParentClass(dex, signature));
+                if(refFiles != null) {
+                    candidateMatchedClassesFile.put(dexClass.getIndex(), refFiles);
+                }
+            }
+        }
+        return refFiles;
+    }
+
+    private void addMatchedClassFiles(IDexClass dexClass, String file) {
+        addMatchedClassFiles(dexClass.getIndex(), file);
+    }
+
+    private void addMatchedClassFiles(int dexClassIndex, String file) {
         DatabaseReferenceFile refFile = usedSigFiles.get(file);
         if(refFile == null) {
             refFile = new DatabaseReferenceFile(file, null);
             usedSigFiles.put(file, refFile);
         }
-        matchedClassesFile.put(dexClass.getIndex(), refFile);
+        matchedClassesFile.put(dexClassIndex, refFile);
+    }
+
+    private void addMatchedClassFiles(int dexClassIndex, DatabaseReferenceFile refFile) {
+        usedSigFiles.put(refFile.file, refFile);
+        matchedClassesFile.put(dexClassIndex, refFile);
     }
 
     public DatabaseReferenceFile removeClassFiles(IDexClass dexClass) {
         return matchedClassesFile.remove(dexClass.getIndex());
+    }
+
+    private void addCandidates(IDexClass eClass, List<String> files) {
+        for(String file: files) {
+            DatabaseReferenceFile refFile = usedSigFiles.get(file);
+            if(refFile == null) {
+                refFile = tempSigFiles.get(file);
+                if(refFile == null) {
+                    refFile = new DatabaseReferenceFile(file, null);
+                    tempSigFiles.put(file, refFile);
+                }
+            }
+            Integer key = eClass.getIndex();
+            Set<DatabaseReferenceFile> val = candidateMatchedClassesFile.get(key);
+            if(val == null) {
+                val = new HashSet<>();
+                candidateMatchedClassesFile.put(key, val);
+            }
+            val.add(refFile);
+        }
+    }
+
+    public void removeCandidateFile(DatabaseReferenceFile r) {
+        Map<Integer, DatabaseReferenceFile> stableElements = new HashMap<>();
+        DatabaseReferenceFile refFile = usedSigFiles.remove(r.file);
+       for (Entry<Integer, Set<DatabaseReferenceFile>> entry : candidateMatchedClassesFile.entrySet()) {
+           if (entry.getValue().remove(refFile)) {
+               if (entry.getValue().size() == 1) {
+                   // move from candidate
+                   stableElements.put(entry.getKey(), entry.getValue().iterator().next());
+               }
+           }
+       }
+       for (Entry<Integer, DatabaseReferenceFile> entry : stableElements.entrySet()) {
+            candidateMatchedClassesFile.remove(entry.getKey());
+            addMatchedClassFiles(entry.getKey(), entry.getValue());
+       }
     }
 
     /**
@@ -103,7 +176,7 @@ public class FileMatches {
      * @param values
      * @return
      */
-    public boolean saveFileVersions(String file, Collection<MethodSignature> values) {
+    private boolean saveFileVersions(String file, Collection<MethodSignature> values) {
         DatabaseReferenceFile refFile = usedSigFiles.get(file);
         if(refFile == null) {
             refFile = new DatabaseReferenceFile(file, null);
@@ -111,6 +184,17 @@ public class FileMatches {
         }
         refFile.mergeVersions(values);
         return true;
+    }
+
+    private void saveCandidateFileVersions(List<String> files, Collection<MethodSignature> values) {
+        for(String file: files) {
+            DatabaseReferenceFile refFile = usedSigFiles.get(file);
+            if(refFile == null) {
+                refFile = new DatabaseReferenceFile(file, null);
+                tempSigFiles.put(file, refFile);
+            }
+            // no merge since we do not know the stable versions refFile.mergeVersions(values);
+        }
     }
 
     public List<List<String>> getOrderedVersions(String f) {
@@ -131,6 +215,10 @@ public class FileMatches {
         if(refFile != null) {
             return refFile;
         }
+        if(candidateMatchedClassesFile.containsKey(cl.getIndex())) {
+            return null;
+        }
+
         String f = null;
         List<String> fs = ref.getFilesContainingClass(className);
         if(fs == null || fs.isEmpty()) {
@@ -150,64 +238,16 @@ public class FileMatches {
                 candidates.add(cand);
             }
         }
-        if(candidates.isEmpty()) {
-            return null;
-        }
         if(candidates.size() == 1) {
             f = candidates.get(0);
             addMatchedClassFiles(cl, f);
             return usedSigFiles.get(f);
         }
-        List<String> newcandidates = new ArrayList<>();
-        int bestLevel = -1;
-        for(String candidate: candidates) {
-            int level = getLevel(ref, candidate, className);
-            if(level >= 0) {
-                if(bestLevel < 0) {
-                    bestLevel = level;
-                    newcandidates.add(candidate);
-                }
-                else if(level < bestLevel) {
-                    newcandidates.clear();
-                    bestLevel = level;
-                    newcandidates.add(candidate);
-                }
-                else if(level == bestLevel) {
-                    newcandidates.add(candidate);
-                }
-            }
+        if(candidates.isEmpty()) {
+            candidates = fs;
         }
-        if(newcandidates.size() == 1) {
-            f = newcandidates.get(0);
-            addMatchedClassFiles(cl, f);
-            return usedSigFiles.get(f);
-        }
+        addCandidates(cl, candidates);
         return null;// maybe duplicated, wait for other part to decide
-    }
-
-    private int getLevel(DatabaseReference ref, String f, String className) {
-        List<MethodSignature> compatibleSignatures = ref.getSignaturesForClassname(f, className, true);
-        DatabaseReferenceFile refFile = usedSigFiles.get(f);
-        List<List<String>> preferedOrderList = refFile.getOrderedVersions();
-        int level = 0;
-        if(preferedOrderList.isEmpty()) {
-            return level;
-        }
-        for(List<String> preferedOrder: preferedOrderList) {
-            for(String prefered: preferedOrder) {
-                for(MethodSignature sig: compatibleSignatures) {
-                    String[] versionsArray = sig.getVersions();
-                    if(versionsArray == null) {
-                        return level;
-                    }
-                    if(Arrays.asList(versionsArray).contains(prefered)) {
-                        return level;
-                    }
-                }
-            }
-            level++;
-        }
-        return -1;
     }
 
     public List<MethodSignature> getSignatureLines(DatabaseReference ref, String file, String hashcode, boolean tight) {
@@ -218,7 +258,8 @@ public class FileMatches {
         return ref.getSignatureLines(refFile, hashcode, tight);
     }
 
-    public void addMatchedClass(IDexClass cl, String classname, boolean safe) {
+    @Deprecated
+    public void addMatchedClass(IDexClass cl, String classname) {
         if(matchedClasses.get(cl.getIndex()) != null) {
             logger.error("Conflict: Try to replace class %s", matchedClasses.get(cl.getIndex()));
             return;
@@ -229,8 +270,32 @@ public class FileMatches {
             return;
         }
         matchedClasses.put(cl.getIndex(), classname);
-        if(!safe) {
-            removeClassFiles(cl);
+        removeClassFiles(cl);
+    }
+
+    public void addMatchedClass(IDexClass cl, String classname, List<String> files,
+            Collection<MethodSignature> usedMethodSignatures) {
+        if(matchedClasses.get(cl.getIndex()) != null) {
+            logger.error("Conflict: Try to replace class %s", matchedClasses.get(cl.getIndex()));
+            return;
+        }
+        if(matchedClasses.containsValue(classname)) {
+            logger.error("Conflict: Try to bind class %s to %s which is already bind to ", classname,
+                    cl.getSignature(false), cl.getSignature(true));
+            return;
+        }
+        matchedClasses.put(cl.getIndex(), classname);
+        removeClassFiles(cl);
+        if(files != null && !files.isEmpty()) {
+            if(files.size() == 1) {
+                String file = files.get(0);
+                saveFileVersions(file, usedMethodSignatures);
+                addMatchedClassFiles(cl, file);
+            }
+            else {
+                saveCandidateFileVersions(files, usedMethodSignatures);
+                addCandidates(cl, files);
+            }
         }
     }
 
@@ -267,6 +332,13 @@ public class FileMatches {
         return matchedClasses.entrySet();
     }
 
+    /**
+     * Can not bind the params, better to retrieve the matching signature
+     * 
+     * @param m
+     * @param methodName
+     */
+    @Deprecated
     public void addMatchedMethod(IDexMethod m, String methodName) {
         if(matchedMethods.get(m.getIndex()) != null) {
             logger.error("Conflict: Try to replace method %s", m);
@@ -275,17 +347,36 @@ public class FileMatches {
         matchedMethods.put(m.getIndex(), methodName);
     }
 
-    public void addMatchedMethod(int index, MethodSignature sig) {
+    public void addMatchedMethod(IDexUnit unit, int index, MethodSignature sig) {
+        addMatchedMethod(index, sig);
+
+        IDexMethod m = unit.getMethod(index);
+        bindMatchedSigMethod(unit, m, sig);
+    }
+
+    private void addMatchedMethod(int index, MethodSignature sig) {
         if(matchedMethods.get(index) != null) {
             logger.error("Conflict: Try to replace method %s", index);
             return;
         }
         matchedMethods.put(index, sig.getMname());
-        matchedSigMethods.put(index, sig);
     }
 
-    public void bindMatchedSigMethod(IDexMethod eMethod, MethodSignature ms) {
-        matchedSigMethods.put(eMethod.getIndex(), ms);
+    public void bindMatchedSigMethod(IDexUnit unit, IDexMethod m, MethodSignature ms) {
+        matchedSigMethods.put(m.getIndex(), ms);
+
+        // post process: reinject parameters
+        if(ms.getPrototype().isEmpty()) {
+            // shorty or several matched: can not reinject classes anyway
+            return;
+        }
+        
+        IDexPrototype proto = unit.getPrototypes().get(m.getPrototypeIndex());
+        String prototypes = proto.generate(true);
+        //if(prototypes.equals(sig.getPrototype())) {
+        //    return;
+        //}
+        contextMatches.saveParamMatching(prototypes, ms.getPrototype(), ms.getCname(), ms.getMname());
     }
 
     public String getMatchedMethod(IDexMethod m) {
