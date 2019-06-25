@@ -52,7 +52,7 @@ public class ContextMatches {
         for(int i = 0; i < oldClasses.size(); i++) {
             String oldClass = oldClasses.get(i);
             String newClass = newClasses.get(i);
-            if(!oldClass.equals(newClass) && oldClass.endsWith(";")) {
+            if(oldClass.endsWith(";")) {
                 // return value updated
                 while(oldClass.charAt(0) == '[') {
                     if(newClass.charAt(0) != '[') {
@@ -62,46 +62,60 @@ public class ContextMatches {
                     oldClass = oldClass.substring(1);
                     newClass = newClass.substring(1);
                 }
-                while(newClass.contains("$") && oldClass.contains("$")) {
-                    int lastIndex = newClass.lastIndexOf('$');
-                    String newClassName = newClass.substring(newClass.lastIndexOf('$'));
-                    if(!oldClass.endsWith(newClassName)) {
-                        saveClassMatch(oldClass, newClass, className, methodName);
-                    }
-                    oldClass = oldClass.substring(0, oldClass.lastIndexOf("$")) + ";";
-                    newClass = newClass.substring(0, lastIndex) + ";";
-                }
-                if(!oldClass.equals(newClass)) {
-                    saveClassMatch(oldClass, newClass, className, methodName);
-                }
+                saveClassMatch(oldClass, newClass, className, methodName);
             }
         }
+    }
+
+    private void saveClassMatch(String oldClass, String newClass, BoundType type, String... params) {
+        Boolean res = saveClassMatch(oldClass, newClass);
+        if(res == Boolean.FALSE) {
+            return; // interrupt
+        }
+        if(res == Boolean.TRUE) {
+            switch(type) {
+            case InnerClass:
+                logger.debug("Found match class: %s related to innerClass %s", newClass, params[0]);
+                break;
+            case Inherit:
+                logger.debug("Found match class: %s related to inherited %s", newClass, params[0]);
+                break;
+            case ParamMatching:
+                logger.debug("Found match class: %s by param matching from %s->%s", newClass, params[0], params[1]);
+                break;
+            case UnknownSourceFile:
+                logger.debug("Found match class: %s from different files", newClass);
+                break;
+            default:
+                logger.debug("Found match class: %s", newClass);
+                break;
+            }
+        }
+        if(DexUtilLocal.isInnerClass(newClass)) {
+            oldClass = DexUtilLocal.getParentSignature(oldClass);
+            newClass = DexUtilLocal.getParentSignature(newClass);
+            saveClassMatch(oldClass, newClass, type, params);
+        }
+    }
+
+    private enum BoundType {
+        InnerClass, Inherit, ParamMatching, UnknownSourceFile
     }
 
     public void saveClassMatch(String oldClass, String newClass, String innerClass) {
-        if(saveClassMatch(oldClass, newClass) == Boolean.TRUE) {
-            logger.debug("Found match class: %s related to innerClass %s", newClass, innerClass);
-        }
+        saveClassMatch(oldClass, newClass, BoundType.InnerClass, innerClass);
     }
 
     public void saveClassMatchInherit(String oldClass, String newClass, String inherit) {
-        if(saveClassMatch(oldClass, newClass) == Boolean.TRUE) {
-            logger.debug("Found match class: %s related to inherited %s", newClass, inherit);
-        }
+        saveClassMatch(oldClass, newClass, BoundType.Inherit, inherit);
     }
 
     public void saveClassMatch(String oldClass, String newClass, String className, String methodName) {
-        if(oldClass.charAt(0) == 'L' && newClass.charAt(0) == 'L') {
-            if(saveClassMatch(oldClass, newClass) == Boolean.TRUE) {
-                logger.debug("Found match class: %s by param matching from %s->%s", newClass, className, methodName);
-            }
-        }
+        saveClassMatch(oldClass, newClass, BoundType.ParamMatching, className, methodName);
     }
 
     public void saveClassMatchUnkownFile(String oldClass, String newClass) {
-        if(saveClassMatch(oldClass, newClass) == Boolean.TRUE) {
-            logger.debug("Found match class: %s from different files", newClass);
-        }
+        saveClassMatch(oldClass, newClass, BoundType.UnknownSourceFile);
     }
 
     public void setInvalidClass(String key) {
@@ -113,6 +127,12 @@ public class ContextMatches {
     }
 
     private Boolean saveClassMatch(String oldClass, String newClass) {
+        if (DexUtilLocal.getInnerClassLevel(oldClass) != DexUtilLocal.getInnerClassLevel(newClass)) {
+            return Boolean.FALSE;
+        }
+        if(oldClass.charAt(0) != 'L' || newClass.charAt(0) != 'L') {
+            return Boolean.FALSE;
+        }
         String value = contextMatches.get(oldClass);
         if(value != null) {
             if(value.equals(INVALID_MATCH)) {

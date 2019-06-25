@@ -614,15 +614,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                             return false;
                         }
                     }
-                    while(newClass.contains("$") && oldClass.contains("$")) {
-                        int lastIndex = newClass.lastIndexOf('$');
-                        String newClassName = newClass.substring(newClass.lastIndexOf('$'));
-                        if(!oldClass.endsWith(newClassName)) {
-                            contextMatches.saveClassMatch(oldClass, newClass, innerMatch.getCname());
-                        }
-                        oldClass = oldClass.substring(0, oldClass.lastIndexOf("$")) + ";";
-                        newClass = newClass.substring(0, lastIndex) + ";";
-                    }
+                    contextMatches.saveClassMatch(oldClass, newClass, innerMatch.getCname());
                 }
             }
         }
