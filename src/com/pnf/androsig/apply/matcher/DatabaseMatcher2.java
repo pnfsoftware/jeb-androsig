@@ -95,9 +95,9 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
 
     // **** Rebuild structure ****
     // Check duplicate classes (if two or more classes match to the same library class, we need to avoid rename these classes)
-    private Map<String, ArrayList<Integer>> dupClasses = new HashMap<>();
+    private Map<String, List<Integer>> dupClasses = new HashMap<>();
     // Check duplicate methods (same as dupClass)
-    private Map<Integer, ArrayList<Integer>> dupMethods = new HashMap<>();
+    private Map<Integer, List<Integer>> dupMethods = new HashMap<>();
 
     /** Cache of total instruction lines per class */
     private Map<Integer, Double> instruCount = new HashMap<>();
@@ -192,7 +192,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         }
 
         // remove duplicates
-        for(Entry<String, ArrayList<Integer>> eClass: dupClasses.entrySet()) {
+        for(Entry<String, List<Integer>> eClass: dupClasses.entrySet()) {
             if(eClass.getValue().size() != 1) {
                 for(Integer e: eClass.getValue()) {
                     // remove class
@@ -447,7 +447,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                         else {
                             if(hintName != null || !newBestCandidates.isEmpty()) {
                                 if(!unique) {
-                                    bestCandidate = mergeCandidates(newBestCandidates);
+                                    bestCandidates = newBestCandidates;
+                                    bestCandidate = mergeCandidates(bestCandidates);
                                 }
                                 else {
                                     // file not determined, save the hint
@@ -658,9 +659,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 fileMatches.removeClassFiles(eClass);
                 return false;
             }
-            String parentSignature = originalSignature.substring(0, originalSignature.lastIndexOf("$")) + ";";
-            String parentMatchSignature = innerMatch.getCname().substring(0, innerMatch.getCname().lastIndexOf("$"))
-                    + ";";
+            String parentSignature = DexUtilLocal.getParentSignature(oldClass);
+            String parentMatchSignature = DexUtilLocal.getParentSignature(newClass);
             if(!parentSignature.equals(parentMatchSignature)) {
                 // expect parent match: otherwise, wait for parent match
                 if(firstRound) {
@@ -671,9 +671,9 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                     // Preprocess: if new class is already renamed, there is no reason to move another one
                     String oldParentClass = oldClass;
                     String newParentClass = newClass;
-                    while(newParentClass.contains("$") && oldParentClass.contains("$")) {
-                        oldParentClass = oldParentClass.substring(0, oldParentClass.lastIndexOf("$")) + ";";
-                        newParentClass = newParentClass.substring(0, newParentClass.lastIndexOf("$")) + ";";
+                    while(DexUtilLocal.isInnerClass(newParentClass)) {
+                        oldParentClass = DexUtilLocal.getParentSignature(oldParentClass);
+                        newParentClass = DexUtilLocal.getParentSignature(newParentClass);
                         IDexClass oldParentClassObj = unit.getClass(oldParentClass);
                         if(oldParentClassObj == null) {
                             continue;
@@ -709,7 +709,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                         Strings.join(",", Arrays.asList(innerMatch.file)));
                 fileMatches.addMatchedClass(eClass, innerMatch.getCname(), Arrays.asList(innerMatch.file),
                         innerMatch.getUsedMethodSignatures());
-                ArrayList<Integer> tempArrayList = dupClasses.get(innerMatch.getCname());
+                List<Integer> tempArrayList = dupClasses.get(innerMatch.getCname());
                 if(tempArrayList != null) {
                     tempArrayList.add(eClass.getIndex());
                     dupClasses.put(innerMatch.getCname(), tempArrayList);
