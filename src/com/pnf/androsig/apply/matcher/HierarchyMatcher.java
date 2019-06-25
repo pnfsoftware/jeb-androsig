@@ -94,13 +94,11 @@ public class HierarchyMatcher {
             }
             else {
                 // type added by obfuscation?
-                System.out.println();
             }
         }
         else {
             if(Strings.isBlank(unstable)) {
                 // type removed by obfuscation?
-                System.out.println();
             }
             else {
                 if(!DexUtilLocal.isCompatibleClasses(original, unstable)) {
