@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import com.pnf.androsig.apply.matcher.DatabaseReferenceFile;
 import com.pnf.androsig.apply.model.MethodSignature.MethodSignatureRevision;
@@ -114,10 +113,7 @@ public class DatabaseReference {
     public List<MethodSignature> getSignatureLines(DatabaseReferenceFile file, String hashcode, boolean tight) {
         List<MethodSignature> sigs = getSignatureLines(file.file, hashcode, tight);
         Set<String> versions = file.getAvailableVersions();
-        if(sigs != null && versions != null) {
-            return sigs.stream().filter(m -> intersect(versions, m.getVersions())).collect(Collectors.toList());
-        }
-        return sigs;
+        return filterVersions(sigs, versions);
     }
 
     @SuppressWarnings("resource")
@@ -130,8 +126,19 @@ public class DatabaseReference {
             boolean exactName) {
         List<MethodSignature> sigs = getSignaturesForClassname(file.file, className, exactName);
         Set<String> versions = file.getAvailableVersions();
-        if(versions != null) {
-            return sigs.stream().filter(m -> intersect(versions, m.getVersions())).collect(Collectors.toList());
+        return filterVersions(sigs, versions);
+    }
+
+    private List<MethodSignature> filterVersions(List<MethodSignature> sigs, Set<String> versions) {
+        if(sigs != null && versions != null && !versions.isEmpty()) {
+            List<MethodSignature> versioned = new ArrayList<>();
+            for(MethodSignature sig: sigs) {
+                if(intersect(versions, sig.getVersions())) {
+                    versioned.add(sig);
+                }
+            }
+            return versioned;
+            //return sigs.stream().filter(m -> intersect(versions, m.getVersions())).collect(Collectors.toList());
         }
         return sigs;
     }
@@ -179,11 +186,11 @@ public class DatabaseReference {
     public Couple<String, List<String>> getParentForClassname(DatabaseReferenceFile refFile, String className) {
         ISignatureFile sigFile = signatureFileFactory.getSignatureFile(refFile.file);
         List<MethodSignature> sigs = sigFile.getParent(className);
-        if(sigs == null) {
+        if(sigs == null || sigs.isEmpty()) {
             return null;
         }
         Set<String> versions = refFile.getAvailableVersions();
-        sigs = sigs.stream().filter(m -> intersect(versions, m.getVersions())).collect(Collectors.toList());
+        sigs = filterVersions(sigs, versions);
         if(sigs.size() != 1) {
             return null;
         }
@@ -195,14 +202,16 @@ public class DatabaseReference {
         }
         boolean firstFound = false;
         for(MethodSignatureRevision rev: sig.getRevisions()) {
-            boolean found = false;
-            for (String v : rev.getVersions()) {
-                if (versions.contains(v)) {
-                    found = true;
+            if(versions != null) {
+                boolean found = false;
+                for(String v: rev.getVersions()) {
+                    if(versions.contains(v)) {
+                        found = true;
+                    }
                 }
-            }
-            if (!found) {
-                continue;
+                if(!found) {
+                    continue;
+                }
             }
             if (!firstFound) {
                 firstFound = true;
