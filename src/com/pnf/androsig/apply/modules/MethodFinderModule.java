@@ -108,7 +108,7 @@ public class MethodFinderModule extends AbstractModule {
                     IDexPrototype proto = dex.getPrototypes().get(eMethod.getPrototypeIndex());
                     String prototypes = proto.generate(true);
                     String shorty = dex.getStrings().get(proto.getShortyIndex()).getValue();
-                    if(instructions != null) {
+                    if(instructions != null && instructions.size() > params.methodSizeBar) {
                         String mhash_tight = dexHashCodeList.getTightHashcode(eMethod);
                         if(mhash_tight == null) {
                             continue;
@@ -140,33 +140,38 @@ public class MethodFinderModule extends AbstractModule {
                     if(Strings.isBlank(methodNameMerged) && !firstRound) {
                         // attempt signature matching only
                         methodNameMerged = "";
-                        MethodSignature strArray = null;
+                        Map<String, Map<DatabaseReferenceFile, MethodSignature>> strArraysMap = new HashMap<>();
+                        List<DatabaseReferenceFile> toRemove = new ArrayList<>();
                         for(DatabaseReferenceFile file: refFiles) {
                             List<MethodSignature> sigs = search.getSignaturesForClassname(file, className, true,
                                     eMethod);
-                            if(!sigs.isEmpty()) {
-                                strArray = search.findMethodName(sigs, prototypes, shorty, className, alreadyMatches,
-                                        eMethod);
+                            if(sigs.isEmpty()) {
+                                continue;
                             }
+                            MethodSignature strArray = search.findMethodName(sigs, prototypes, shorty, className,
+                                    alreadyMatches, eMethod);
                             if(strArray != null) {
-                                String newMethodName = strArray.getMname();
-                                if(newMethodName.isEmpty()) {
-                                    methodNameMerged = null;
-                                    break;
+                                Map<DatabaseReferenceFile, MethodSignature> map = strArraysMap.get(strArray.getMname());
+                                if(map == null) {
+                                    map = new HashMap<>();
+                                    strArraysMap.put(strArray.getMname(), map);
                                 }
-                                else if(methodNameMerged.isEmpty()) {
-                                    methodNameMerged = newMethodName;
-                                    strArrays.add(strArray);
-                                }
-                                else if(!methodNameMerged.equals(newMethodName)) {
-                                    methodNameMerged = null;
-                                    break;
-                                }
+                                map.put(file, strArray);
                             }
                             else {
-                                methodNameMerged = null;
-                                break;
+                                toRemove.add(file);
                             }
+                        }
+                        if(!toRemove.isEmpty() && toRemove.size() != refFiles.size()) {
+                            // not a single reference found for signature
+                            for(DatabaseReferenceFile r: toRemove) {
+                                fileMatches.removeCandidateFile(r);
+                            }
+                        }
+                        if(strArraysMap.size() == 1) {
+                            Map<DatabaseReferenceFile, MethodSignature> map = strArraysMap.values().iterator().next();
+                            strArrays = new ArrayList<>(map.values());
+                            methodNameMerged = strArraysMap.keySet().iterator().next();
                         }
                     }
 
