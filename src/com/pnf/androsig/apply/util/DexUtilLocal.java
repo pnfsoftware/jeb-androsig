@@ -98,6 +98,24 @@ public class DexUtilLocal {
         return true;
     }
 
+    public static boolean isObjectInheritedMethod(String methodName, String prototype) {
+        return isMethodEquals("toString", "()Ljava/lang/String;", methodName, prototype)
+                || isMethodEquals("equals", "(Ljava/lang/Object;)Z", methodName, prototype)
+                || isMethodEquals("finalize", "()Z", methodName, prototype)
+                || isMethodEquals("getClass", "()Ljava/lang/Class;", methodName, prototype)
+                || isMethodEquals("hashCode", "()I", methodName, prototype)
+                || isMethodEquals("notify", "()V", methodName, prototype)
+                || isMethodEquals("notifyAll", "()V", methodName, prototype)
+                || isMethodEquals("wait", "()V", methodName, prototype)
+                || isMethodEquals("wait", "(J)V", methodName, prototype)
+                || isMethodEquals("wait", "(JI)V", methodName, prototype);
+    }
+
+    private static boolean isMethodEquals(String methodName1, String prototype1, String methodName2,
+            String prototype2) {
+        return methodName1.equals(methodName2) && prototype1.equals(prototype2);
+    }
+
     public static String extractParamsFromSignature(String sig) {
         int start = sig.indexOf("(");
         int end = sig.indexOf(")");
@@ -105,6 +123,10 @@ public class DexUtilLocal {
             throw new IllegalArgumentException("Illegal signature " + sig);
         }
         return sig.substring(start + 1, end);
+    }
+
+    public static String extractReturnValueFromSignature(String sig) {
+        return sig.substring(sig.indexOf(")") + 1);
     }
 
     private static boolean compareMethodWithoutParameter(String methodName, String name1, String params1, String name2,
@@ -205,11 +227,11 @@ public class DexUtilLocal {
         return true;
     }
 
-    private static boolean isJavaPlatformClass(String original) {
+    public static boolean isJavaPlatformClass(String original) {
         return original.startsWith("Ljava/");
     }
 
-    private static boolean isAndroidPlatformClass(String original) {
+    public static boolean isAndroidPlatformClass(String original) {
         if(!original.startsWith("Landroid/")) {
             return false;
         }

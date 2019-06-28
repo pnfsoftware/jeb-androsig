@@ -347,7 +347,8 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         if(matching.isEmpty()) {
             hasCandidates = matching.processClass(this, eClass, methods, innerLevel); // TODO remove already matched
             if(!hasCandidates && !whiteListClasses.contains(eClass.getIndex())) {
-                ignoredClasses.add(eClass.getIndex());
+                // there may be alternative, multi matching, by finding context
+                //ignoredClasses.add(eClass.getIndex());
             }
         }
 
@@ -451,8 +452,17 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                                     bestCandidate = mergeCandidates(newBestCandidates);
                                 }
                                 else {
-                                    // file not determined, save the hint
-                                    contextMatches.saveClassMatchUnkownFile(originalSignature, className);
+                                    boolean valid = false;
+                                    for(InnerMatch cand: newBestCandidates) {
+                                        if(validateOneMatch(matching, dex, cand, originalSignature, parentClassFound)) {
+                                            valid = true;
+                                            break;
+                                        }
+                                    }
+                                    if(valid) {
+                                        // file not determined, save the hint
+                                        contextMatches.saveClassMatchUnkownFile(originalSignature, className);
+                                    }
                                 }
                             }
                         }
@@ -464,23 +474,49 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                 return null;
             }
         }
-        if(hintName == null && bestCandidate.oneMatch) {
-            if(DexUtilLocal.isInnerClass(originalSignature) && !parentClassFound) {
-                return null;
-            }
-            // seriously check matching class: may be a false positive
-            List<MethodSignature> allMethods = ref.getSignaturesForClassname(bestCandidate.getFirstRefFile(),
-                    bestCandidate.getCname(), true);
-            Set<String> methodNames = allMethods.stream().map(m -> m.getMname() + m.getPrototype())
-                    .collect(Collectors.toSet());
-            if(methodNames.size() != bestCandidate.methodsSize()) {
-                // false positive most of the time: may investigate more here
-                // expect to find match by param matching, safer
-                return null;
-            }
+        if(hintName == null && !validateOneMatch(matching, dex, bestCandidate, originalSignature, parentClassFound)) {
+            return null;
         }
         bestCandidate.validateMethods();
         return bestCandidate;
+    }
+
+    private boolean validateOneMatch(MatchingSearch matching, IDexUnit dex, InnerMatch bestCandidate, String originalSignature,
+            boolean parentClassFound) {
+        if(bestCandidate.oneMatch) {
+            if(DexUtilLocal.isInnerClass(originalSignature)) {
+                return parentClassFound;
+            }
+            // seriously check matching class: may be a false positive
+            if(bestCandidate.methodsSize() > params.matchedMethodsOneMatch) {
+                return true;
+            }
+            // valid if at least 2 true matches
+            int complexSignatureFound = 0;
+            for(Entry<Integer, MethodSignature> entry: bestCandidate.entrySet()) {
+                if(entry.getValue().getPrototype().isEmpty()) {
+                    continue;
+                }
+                if(matching.isComplexSignature(entry.getValue().getPrototype())) {
+                    // complex signatures found
+                    complexSignatureFound++;
+                }
+                else {
+                    // same name (except generic names)
+                    String methodName = dex.getMethod(entry.getKey()).getName(true);
+                    if(!entry.getValue().getMname().equals(methodName)) {
+                        continue;
+                    }
+                    if(DexUtilLocal.isObjectInheritedMethod(entry.getValue().getMname(),
+                            entry.getValue().getPrototype())) {
+                        continue;
+                    }
+                    complexSignatureFound++;
+                }
+            }
+            return complexSignatureFound > 1;
+        }
+        return true;
     }
 
     private InnerMatch mergeCandidates(List<InnerMatch> newBestCandidates) {

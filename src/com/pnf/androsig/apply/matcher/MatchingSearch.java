@@ -277,11 +277,12 @@ public class MatchingSearch {
                             .filter(s -> isCompatibleSignature(s, SignatureCheck.PROTOTYPE_STRICT, shorty, prototypes,
                                     eMethod))
                             .collect(Collectors.toList());
-                    String params1 = DexUtilLocal.extractParamsFromSignature(prototypes);
-                    List<String> paramList = DexUtilLocal.parseSignatureParameters(params1);
-                    if(paramList.isEmpty() || (paramList.size() == 1 && paramList.get(0).length() == 1)) {
+                    if(!isComplexSignature(prototypes)) {
                         String mname = eMethod.getName(true);
-                        sigLine = sigLine.stream().filter(s -> s.getMname().equals(mname)).collect(Collectors.toList());
+                        sigLine = sigLine.stream()
+                                .filter(s -> s.getMname().equals(mname)
+                                        && !DexUtilLocal.isObjectInheritedMethod(s.getMname(), s.getPrototype()))
+                                .collect(Collectors.toList());
                     }
                 }
             }
@@ -303,6 +304,27 @@ public class MatchingSearch {
             }
             saveTemporaryCandidate(eMethod, sigLine, firstRound, classes, file.file, innerLevel);
         }
+    }
+
+    public boolean isComplexSignature(String prototypes) {
+        String params1 = DexUtilLocal.extractParamsFromSignature(prototypes);
+        List<String> paramList = DexUtilLocal.parseSignatureParameters(params1);
+        // do not consider one argument methods
+        if(paramList.isEmpty() || (paramList.size() == 1 && paramList.get(0).length() == 1)) {
+            return false;
+        }
+        paramList.add(DexUtilLocal.extractReturnValueFromSignature(prototypes));
+        int genericApiParams = 0;
+        for(String param: paramList) {
+            if(param.length() == 1) {
+                continue;
+            }
+            if(DexUtilLocal.isAndroidPlatformClass(param) || DexUtilLocal.isJavaPlatformClass(param)) {
+                genericApiParams++;
+            }
+            return true;
+        }
+        return genericApiParams >= params.complexSignatureParams;
     }
 
     public boolean processClass(IMatcherValidation validation, IDexClass eClass, List<? extends IDexMethod> methods,

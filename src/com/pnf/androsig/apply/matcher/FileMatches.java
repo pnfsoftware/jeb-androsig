@@ -57,6 +57,11 @@ public class FileMatches {
     }
 
     public Set<String> getSignatureFileUsed() {
+        // TODO better to have some kind of alt values
+        //Set<String> set = new HashSet<>();
+        //set.addAll(tempSigFiles.keySet());
+        //set.addAll(usedSigFiles.keySet());
+        //return set;
         return usedSigFiles.keySet();
     }
 

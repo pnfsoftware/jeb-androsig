@@ -31,6 +31,10 @@ public class DatabaseMatcherParameters {
     public int reverseMatchingComplexObjectThreshold = 10; // minimum number of complex objects used in method signatures
     //public double reverseMatchingOpcountDeltaPercentage = 0.2; // delta allowed between two methods that do not have same hashcode
 
+    public int matchedMethodsOneMatch = 10;
+
+    public int complexSignatureParams = 2;
+
     public static DatabaseMatcherParameters parseParameters(Map<String, String> executionOptions) {
         DatabaseMatcherParameters params = new DatabaseMatcherParameters();
         String methodSizeBar = executionOptions.get("methodSizeBar");
