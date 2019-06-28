@@ -20,10 +20,10 @@ package com.pnf.androsig.apply.andsig;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import com.pnf.androsig.apply.matcher.DatabaseMatcherParameters;
 import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.DexHashcodeList;
 import com.pnf.androsig.apply.model.StructureInfo;
@@ -36,7 +36,6 @@ import com.pnfsoftware.jeb.core.IEnginesContext;
 import com.pnfsoftware.jeb.core.IOptionDefinition;
 import com.pnfsoftware.jeb.core.IPluginInformation;
 import com.pnfsoftware.jeb.core.IRuntimeProject;
-import com.pnfsoftware.jeb.core.OptionDefinition;
 import com.pnfsoftware.jeb.core.PluginInformation;
 import com.pnfsoftware.jeb.core.RuntimeProjectUtil;
 import com.pnfsoftware.jeb.core.Version;
@@ -71,14 +70,7 @@ public class AndroidSigApplyPlugin extends AbstractEnginesPlugin {
 
     @Override
     public List<? extends IOptionDefinition> getExecutionOptionDefinitions() {
-        return Arrays
-                .asList(new OptionDefinition(null,
-                        "The method will be ignored if its instruction count is no greater than \"method size bar\"\nValue range: >= 0 (Default value: 6)"),
-                        new OptionDefinition("methodSizeBar", "Method size bar"),
-                        new OptionDefinition(
-                                null,
-                                "The class will be ignored if (total matched instructions / total instructions) is no greater than \"matched instructions percentage bar\"\nValue range: 0.0 - 1.0 (Default value: 0.5)"),
-                        new OptionDefinition("matchedInstusPercentageBar", "Matched instructions percentage bar"));
+        return DatabaseMatcherParameters.getExecutionOptionDefinitions();
     }
 
     /**
