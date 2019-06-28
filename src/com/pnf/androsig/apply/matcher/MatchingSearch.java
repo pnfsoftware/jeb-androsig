@@ -269,9 +269,9 @@ public class MatchingSearch {
                 }
                 if(sigLine == null || sigLine.isEmpty()) {
                     // look for candidates based on signature match
-                    IDexPrototype proto = dex.getPrototypes().get(eMethod.getPrototypeIndex());
+                    IDexPrototype proto = dex.getPrototype(eMethod.getPrototypeIndex());
                     String prototypes = proto.generate(true);
-                    String shorty = null;//dex.getStrings().get(proto.getShortyIndex()).getValue();
+                    String shorty = null;//proto.getShorty();
 
                     sigLine = compatibleSignatures.stream()
                             .filter(s -> isCompatibleSignature(s, SignatureCheck.PROTOTYPE_STRICT, shorty, prototypes,
@@ -501,7 +501,7 @@ public class MatchingSearch {
 
     private void saveTemporaryCandidate(IDexMethod eMethod, List<MethodSignature> elts,
             boolean firstRound, Map<String, InnerMatch> classes, String file, int innerLevel) {
-        IDexPrototype proto = dex.getPrototypes().get(eMethod.getPrototypeIndex());
+        IDexPrototype proto = dex.getPrototype(eMethod.getPrototypeIndex());
         String shorty = proto.getShorty();
         String prototype = proto.generate(true);
 
@@ -543,7 +543,7 @@ public class MatchingSearch {
 
     public MethodSignature findMethodMatch(DatabaseReferenceFile file, String className, IDexMethod eMethod,
             String methodName) {
-        IDexPrototype proto = dex.getPrototypes().get(eMethod.getPrototypeIndex());
+        IDexPrototype proto = dex.getPrototype(eMethod.getPrototypeIndex());
         String prototypes = proto.generate(true);
         List<MethodSignature> sigs = getSignaturesForClassname(file, className, true, eMethod);
         sigs = sigs.stream().filter(s -> s.getMname().equals(methodName)).collect(Collectors.toList());
@@ -552,16 +552,16 @@ public class MatchingSearch {
         if(ms != null) {
             return ms;
         }
-        String shorty = dex.getStrings().get(proto.getShortyIndex()).getValue();
+        String shorty = proto.getShorty();
         return findMethodName(sigs, SignatureCheck.PROTOTYPE_COMPATIBLE, prototypes, shorty, className,
                 new ArrayList<>(), eMethod);
     }
 
     public MethodSignature findMethodMatch(DatabaseReferenceFile file, String classPath,
             Collection<MethodSignature> alreadyProcessedMethods, IDexMethod eMethod, boolean allowEmptyMName) {
-        IDexPrototype proto = dex.getPrototypes().get(eMethod.getPrototypeIndex());
+        IDexPrototype proto = dex.getPrototype(eMethod.getPrototypeIndex());
         String prototypes = proto.generate(true);
-        String shorty = dex.getStrings().get(proto.getShortyIndex()).getValue();
+        String shorty = proto.getShorty();
         String mhash_tight = dexHashCodeList.getTightHashcode(eMethod);
         if(mhash_tight == null) {
             return null;
@@ -590,9 +590,9 @@ public class MatchingSearch {
 
     public MethodSignature findMethodName(List<MethodSignature> sigs, String classPath,
             Collection<MethodSignature> alreadyProcessedMethods, IDexMethod eMethod) {
-        IDexPrototype proto = dex.getPrototypes().get(eMethod.getPrototypeIndex());
+        IDexPrototype proto = dex.getPrototype(eMethod.getPrototypeIndex());
         String prototypes = proto.generate(true);
-        String shorty = dex.getStrings().get(proto.getShortyIndex()).getValue();
+        String shorty = proto.getShorty();
         return findMethodName(sigs, prototypes, shorty, classPath, alreadyProcessedMethods, eMethod);
     }
 

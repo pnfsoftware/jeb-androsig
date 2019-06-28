@@ -105,9 +105,9 @@ public class MethodFinderModule extends AbstractModule {
 
                     String methodNameMerged = "";
                     List<MethodSignature> strArrays = new ArrayList<>();
-                    IDexPrototype proto = dex.getPrototypes().get(eMethod.getPrototypeIndex());
+                    IDexPrototype proto = dex.getPrototype(eMethod.getPrototypeIndex());
                     String prototypes = proto.generate(true);
-                    String shorty = dex.getStrings().get(proto.getShortyIndex()).getValue();
+                    String shorty = proto.getShorty();
                     if(instructions != null && instructions.size() > params.methodSizeBar) {
                         String mhash_tight = dexHashCodeList.getTightHashcode(eMethod);
                         if(mhash_tight == null) {
@@ -277,9 +277,9 @@ public class MethodFinderModule extends AbstractModule {
                     fileMatches.bindMatchedSigMethod(dex, eMethod, ms);
                 }
                 else {
-                    IDexPrototype proto = dex.getPrototypes().get(eMethod.getPrototypeIndex());
+                    IDexPrototype proto = dex.getPrototype(eMethod.getPrototypeIndex());
                     String prototypes = proto.generate(true);
-                    String shorty = dex.getStrings().get(proto.getShortyIndex()).getValue();
+                    String shorty = proto.getShorty();
                     ms = new MethodSignature(className, methodName, shorty, prototypes, null);
                 }
             }

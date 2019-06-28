@@ -113,7 +113,7 @@ public class ReverseMatchingModule extends AbstractModule {
                         List<String> mparamsList = DexUtilLocal.parseSignatureParameters(mparams[0]);
                         mparamsList.add(mparams[1]); // return value
 
-                        IDexPrototype proto = dex.getPrototypes().get(dex.getMethod(en.getKey()).getPrototypeIndex());
+                        IDexPrototype proto = dex.getPrototype(dex.getMethod(en.getKey()).getPrototypeIndex());
                         String prototypes = proto.generate(true);
                         String[] realParams = prototypes.substring(1).split("\\)");
                         List<String> realParamList = DexUtilLocal.parseSignatureParameters(realParams[0]);

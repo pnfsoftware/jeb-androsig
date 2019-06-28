@@ -65,17 +65,17 @@ public class FileMatches {
         return usedSigFiles.keySet();
     }
 
-    public Set<Entry<String, DatabaseReferenceFile>> getSignatureFileEntrySet() {
-        return usedSigFiles.entrySet();
-    }
+    //    public Set<Entry<String, DatabaseReferenceFile>> getSignatureFileEntrySet() {
+    //        return usedSigFiles.entrySet();
+    //    }
 
     public boolean isSignatureFileUsed(String f) {
         return usedSigFiles.containsKey(f);
     }
 
-    public DatabaseReferenceFile getFromFilename(String file) {
-        return usedSigFiles.get(file);
-    }
+    //    public DatabaseReferenceFile getFromFilename(String file) {
+    //        return usedSigFiles.get(file);
+    //    }
 
     public DatabaseReferenceFile getFileFromClass(IDexUnit dex, IDexClass dexClass) {
         if(dexClass == null) {
@@ -201,18 +201,6 @@ public class FileMatches {
             // no merge since we do not know the stable versions refFile.mergeVersions(values);
         }
     }
-
-    public List<List<String>> getOrderedVersions(String f) {
-        return getOrderedVersions(usedSigFiles.get(f));
-    }
-
-    public List<List<String>> getOrderedVersions(DatabaseReferenceFile refFile) {
-        if(refFile == null) {
-            return new ArrayList<>();
-        }
-        return refFile.getOrderedVersions();
-    }
-
 
     public DatabaseReferenceFile getMatchedClassFile(IDexUnit dex, IDexClass cl, String className,
             DatabaseReference ref) {
@@ -361,7 +349,7 @@ public class FileMatches {
             return;
         }
 
-        IDexPrototype proto = unit.getPrototypes().get(m.getPrototypeIndex());
+        IDexPrototype proto = unit.getPrototype(m.getPrototypeIndex());
         String prototypes = proto.generate(true);
         //if(prototypes.equals(sig.getPrototype())) {
         //    return;
