@@ -81,7 +81,7 @@ public class DexProcessor {
                 StringBuilder s = new StringBuilder();
                 s.append(classname).append(',');
                 s.append(m.getName(true)).append(',');
-                IDexPrototype proto = dex.getPrototypes().get(m.getPrototypeIndex());
+                IDexPrototype proto = dex.getPrototype(m.getPrototypeIndex());
                 s.append(proto.getShorty()).append(',');
                 s.append(proto.generate(false)).append(',');
                 s.append(opcount).append(',');
