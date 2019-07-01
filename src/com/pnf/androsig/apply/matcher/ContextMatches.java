@@ -196,6 +196,10 @@ public class ContextMatches {
         return contextMatches.get(key);
     }
 
+    public String getMethod(Integer key) {
+        return methodMatches.get(key);
+    }
+
     public Set<Entry<Integer, String>> methodsEntrySet() {
         return methodMatches.entrySet();
     }

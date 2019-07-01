@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.pnf.androsig.apply.matcher.ContextMatches;
 import com.pnf.androsig.apply.matcher.DatabaseMatcherParameters;
@@ -102,13 +103,14 @@ public class MethodFinderModule extends AbstractModule {
                     }
 
                     List<? extends IInstruction> instructions = eMethod.getInstructions();
+                    String methodHint = getHintMethodName(eMethod);
 
                     String methodNameMerged = "";
                     List<MethodSignature> strArrays = new ArrayList<>();
                     IDexPrototype proto = dex.getPrototype(eMethod.getPrototypeIndex());
                     String prototypes = proto.generate(true);
                     String shorty = proto.getShorty();
-                    if(instructions != null && instructions.size() > params.methodSizeBar) {
+                    if(methodHint == null && instructions != null && instructions.size() > params.methodSizeBar) {
                         String mhash_tight = dexHashCodeList.getTightHashcode(eMethod);
                         if(mhash_tight == null) {
                             continue;
@@ -137,7 +139,7 @@ public class MethodFinderModule extends AbstractModule {
                             }
                         }
                     } // no instructions == no hash
-                    if(Strings.isBlank(methodNameMerged) && !firstRound) {
+                    if(methodHint != null || (Strings.isBlank(methodNameMerged) && !firstRound)) {
                         // attempt signature matching only
                         methodNameMerged = "";
                         Map<String, Map<DatabaseReferenceFile, MethodSignature>> strArraysMap = new HashMap<>();
@@ -147,6 +149,10 @@ public class MethodFinderModule extends AbstractModule {
                                     eMethod);
                             if(sigs.isEmpty()) {
                                 continue;
+                            }
+                            if(methodHint != null) {
+                                sigs = sigs.stream().filter(s -> methodHint.equals(s.getMname()))
+                                        .collect(Collectors.toList());
                             }
                             MethodSignature strArray = search.findMethodName(sigs, prototypes, shorty, className,
                                     alreadyMatches, eMethod);
@@ -159,7 +165,7 @@ public class MethodFinderModule extends AbstractModule {
                                 map.put(file, strArray);
                             }
                             else {
-                                toRemove.add(file);
+                                toRemove.add(file); // no method match in this file => not a good one
                             }
                         }
                         if(!toRemove.isEmpty() && toRemove.size() != refFiles.size()) {
@@ -176,13 +182,23 @@ public class MethodFinderModule extends AbstractModule {
                     }
 
                     if(!Strings.isBlank(methodNameMerged)) {//&& !eMethod.getName(true).equals(methodName)) {
+                        MethodSignature strArray = null;
                         if(strArrays.size() == 1) {
-                            MethodSignature strArray = strArrays.get(0);
-                            fileMatches.addMatchedMethod(dex, eMethod.getIndex(), strArray);
-                            alreadyMatches.add(strArray);
+                            strArray = strArrays.get(0);
                         }
                         else {
+                            strArray = MethodSignature.mergeSignatures(strArrays, false);
+                            if(strArray.getPrototype().isEmpty()) {
+                                strArray = null;
+                            }
+                        }
+                        if(strArray == null) {
+                            // classes renamed or moved
                             saveMethodMatch(eMethod.getIndex(), methodNameMerged);
+                        }
+                        else {
+                            fileMatches.addMatchedMethod(dex, eMethod.getIndex(), strArray);
+                            alreadyMatches.add(strArray);
                         }
                     }
                 }
@@ -246,6 +262,14 @@ public class MethodFinderModule extends AbstractModule {
         }
 
         return new HashMap<>();
+    }
+
+    private String getHintMethodName(IDexMethod eMethod) {
+        String methodHint = contextMatches.getMethod(eMethod.getIndex());
+        if(methodHint == null) {
+            return null;
+        }
+        return contextMatches.isValid(methodHint) ? methodHint: null;
     }
 
     @Override

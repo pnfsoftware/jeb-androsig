@@ -21,8 +21,10 @@ package com.pnf.androsig.apply.model;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.pnf.androsig.common.SignatureHandler;
 import com.pnfsoftware.jeb.util.encoding.Conversion;
@@ -527,6 +529,60 @@ public class MethodSignature {
 
     public static boolean equalsMethodSig(MethodSignature ref, MethodSignature current) {
         return ref.getMname().equals(current.getMname()) && ref.getPrototype().equals(current.getPrototype());
+    }
+
+    /**
+     * Merge basic informations from signature (classname, methodname and prototype)
+     * 
+     * @param results
+     * @param mergeVersions
+     * @return
+     */
+    public static MethodSignature mergeSignatures(List<MethodSignature> results, boolean mergeVersions) {
+        if(results == null || results.isEmpty()) {
+            return null;
+        }
+        if(results.size() == 1) {
+            return results.get(0);
+        }
+        String[] result = new String[5];
+        for(int i = 0; i < 5; i++) {
+            for(MethodSignature ress: results) {
+                String[] res = ress.toTokens();
+                if(i >= res.length) {
+                    continue;
+                }
+                if(result[i] == null) {
+                    result[i] = res[i];
+                }
+                else if(!result[i].equals(res[i])) {
+                    result[i] = ""; // two lines differ here: may loose callers
+                    if(i == 1) {
+                        // String methodMatch = result[i] + " OR " + res[i];
+                        // logger.debug("%s: There are several methods matching for signature %s: %s", ress.getCname(),
+                        //         ress.getPrototype(), methodMatch);
+                    }
+                    break;
+                }
+            }
+        }
+        String versionsStr = null;
+        if(mergeVersions) {
+            // merge versions
+            Set<String> versions = new HashSet<>();
+            for(MethodSignature value: results) {
+                // put first as reference
+                String[] vArray = value.getVersions();
+                if(vArray != null) {
+                    for(String version: vArray) {
+                        versions.add(version);
+                    }
+                }
+            }
+            versionsStr = Strings.join(";", versions);
+        }
+        return new MethodSignature(MethodSignature.getClassname(result), MethodSignature.getMethodName(result),
+                MethodSignature.getShorty(result), MethodSignature.getPrototype(result), versionsStr);
     }
 
 }

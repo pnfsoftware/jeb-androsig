@@ -672,7 +672,7 @@ public class MatchingSearch {
                     results = sameNames;
                 }
             }
-            return MatchingSearch.mergeSignature(results);
+            return MethodSignature.mergeSignatures(results, true);
         }
         return null;
     }
@@ -757,49 +757,6 @@ public class MatchingSearch {
         }
     }
 
-    private static MethodSignature mergeSignature(List<MethodSignature> results) {
-        if(results == null || results.isEmpty()) {
-            return null;
-        }
-        if(results.size() == 1) {
-            return results.get(0);
-        }
-        String[] result = new String[9];
-        for(int i = 0; i < 5; i++) {
-            for(MethodSignature ress: results) {
-                String[] res = ress.toTokens();
-                if(i >= res.length) {
-                    continue;
-                }
-                if(result[i] == null) {
-                    result[i] = res[i];
-                }
-                else if(!result[i].equals(res[i])) {
-                    result[i] = ""; // two lines differ here: may loose callers
-                    if(i == 1) {
-                        // String methodMatch = result[i] + " OR " + res[i];
-                        // logger.debug("%s: There are several methods matching for signature %s: %s", ress.getCname(),
-                        //         ress.getPrototype(), methodMatch);
-                    }
-                    break;
-                }
-            }
-        }
-        // merge versions
-        Set<String> versions = new HashSet<>();
-        for(MethodSignature value: results) {
-            // put first as reference
-            String[] vArray = value.getVersions();
-            if(vArray != null) {
-                for(String version: vArray) {
-                    versions.add(version);
-                }
-            }
-        }
-        return new MethodSignature(MethodSignature.getClassname(result), MethodSignature.getMethodName(result),
-                MethodSignature.getShorty(result), MethodSignature.getPrototype(result), Strings.join(";", versions));
-    }
-
     static List<MethodSignature> mergeSignaturesPerClass(List<MethodSignature> results) {
         if(results.size() < 2) {
             return results;
@@ -816,7 +773,7 @@ public class MatchingSearch {
         }
         List<MethodSignature> merged = new ArrayList<>();
         for(List<MethodSignature> values: sigs.values()) {
-            merged.add(mergeSignature(values));
+            merged.add(MethodSignature.mergeSignatures(values, true));
         }
         return merged;
     }

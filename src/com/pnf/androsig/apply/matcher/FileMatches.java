@@ -310,21 +310,6 @@ public class FileMatches {
         return matchedClasses.entrySet();
     }
 
-    /**
-     * Can not bind the params, better to retrieve the matching signature
-     * 
-     * @param m
-     * @param methodName
-     */
-    @Deprecated
-    public void addMatchedMethod(IDexMethod m, String methodName) {
-        if(matchedMethods.get(m.getIndex()) != null) {
-            logger.error("Conflict: Try to replace method %s", m);
-            return;
-        }
-        matchedMethods.put(m.getIndex(), methodName);
-    }
-
     public void addMatchedMethod(IDexUnit unit, int index, MethodSignature sig) {
         addMatchedMethod(index, sig);
 
@@ -342,6 +327,7 @@ public class FileMatches {
 
     public void bindMatchedSigMethod(IDexUnit unit, IDexMethod m, MethodSignature ms) {
         matchedSigMethods.put(m.getIndex(), ms);
+        // TODO update sigFile versions
 
         // post process: reinject parameters
         if(ms.getPrototype().isEmpty()) {

@@ -181,10 +181,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             }
             IDexMethod m = unit.getMethod(entry.getKey());
             String newName = fileMatches.getMatchedMethod(m);
-            if(newName == null) {
-                fileMatches.addMatchedMethod(m, entry.getValue());
-            }
-            else if(!newName.equals(entry.getValue())) {
+            if(newName != null && !newName.equals(entry.getValue())) {
                 logger.warn("Conflict for method: Method %s was already renamed to %s. Can not rename to %s",
                         m.getName(false), newName, entry.getValue());
                 contextMatches.setInvalidMethod(entry.getKey());

@@ -21,7 +21,7 @@ import com.pnfsoftware.jeb.core.units.code.android.dex.IDexClass;
  *
  */
 public abstract class AbstractModule implements IAndrosigModule {
-    private final ContextMatches contextMatches;
+    protected final ContextMatches contextMatches;
     protected final FileMatches fileMatches;
     protected final DatabaseReference ref;
 
