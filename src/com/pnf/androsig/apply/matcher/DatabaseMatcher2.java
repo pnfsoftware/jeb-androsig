@@ -342,7 +342,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         // Look for candidate files: only uses hashcodes + prototype/compatible prototype
         boolean hasCandidates = true;
         if(matching.isEmpty()) {
-            hasCandidates = matching.processClass(this, eClass, methods, innerLevel); // TODO remove already matched
+            hasCandidates = matching.processClass(this, eClass, methods, innerLevel);
             if(!hasCandidates && !whiteListClasses.contains(eClass.getIndex())) {
                 // there may be alternative, multi matching, by finding context
                 //ignoredClasses.add(eClass.getIndex());

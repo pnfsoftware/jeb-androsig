@@ -382,6 +382,11 @@ public class MatchingSearch {
                     if(sigLines == null || sigLines.isEmpty()) {
                         continue;
                     }
+                    // remove already matched classes
+                    sigLines = sigLines.stream().filter(s -> !fileMatches.containsMatchedClassValue(s.getCname()))
+                            .collect(Collectors.toList());
+
+                    // filter methodName hint
                     String mname = fileMatches.getMatchedMethod(eMethod);
                     if(mname != null) {
                         sigLines = sigLines.stream().filter(s -> mname.equals(s.getMname())).collect(Collectors.toList());
