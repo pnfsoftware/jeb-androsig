@@ -447,7 +447,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                         else {
                             if(hintName != null || !newBestCandidates.isEmpty()) {
                                 if(!unique) {
-                                    bestCandidate = mergeCandidates(newBestCandidates);
+                                    bestCandidate = mergeCandidates(dex, newBestCandidates);
                                 }
                                 else {
                                     boolean valid = false;
@@ -517,7 +517,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         return true;
     }
 
-    private InnerMatch mergeCandidates(List<InnerMatch> newBestCandidates) {
+    private InnerMatch mergeCandidates(IDexUnit dex, List<InnerMatch> newBestCandidates) {
         Map<Integer, MethodSignature>  classPathMethod = new HashMap<>();
         List<Integer> doNotRenameIndexes = new ArrayList<>();
         boolean oneMatch = false;
@@ -551,7 +551,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         }
         InnerMatch innerMatch = new InnerMatch(first.getCname(), files);
         for(Entry<Integer, MethodSignature> entry: classPathMethod.entrySet()) {
-            innerMatch.addMethod(entry.getKey(), entry.getValue());
+            innerMatch.addMethod(dex.getMethod(entry.getKey()), entry.getValue());
         }
         innerMatch.doNotRenameIndexes = doNotRenameIndexes;
         innerMatch.oneMatch = oneMatch;
@@ -613,7 +613,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                     MethodSignature strArray = fileCandidates.findMethodMatch(cand.getFirstRefFile(), cand.getCname(),
                             cand.getUsedMethodSignatures(), eMethod, true);
                     if(strArray != null) {
-                        cand.addMethod(eMethod.getIndex(), strArray);
+                        cand.addMethod(eMethod, strArray);
                     }
                     else if(!firstPass && !cand.oneMatch) {
                         if(sigs == null) {
@@ -622,7 +622,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                         }
                         strArray = fileCandidates.findMethodName(sigs, cand.getCname(), new ArrayList<>(), eMethod);
                         if(strArray != null && strArray.getMname() != null && strArray.getPrototype() != null) {
-                            cand.addMethod(eMethod.getIndex(), strArray);
+                            cand.addMethod(eMethod, strArray);
                         }
                     }
                 }

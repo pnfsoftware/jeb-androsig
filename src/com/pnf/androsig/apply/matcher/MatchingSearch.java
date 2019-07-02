@@ -92,14 +92,46 @@ public class MatchingSearch {
             return classPathMethod.size();
         }
 
-        // TODO maybe more restrictive here to reduce false positive
-        public boolean addMethod(Integer key, MethodSignature ms) {
+        public boolean addMethod(IDexMethod eMethod, MethodSignature ms) {
+            Integer key = eMethod.getIndex();
             if(classPathMethod.containsKey(key)) {
-                //return false;
+                return false;
             }
-            if(distinctMethods.contains(ms)) {
-                //return false;
+
+            // Validate that only one method matches that Method Signature
+            Integer oldKey = null;
+            MethodSignature toRemove = null;
+            distinctLoop: for(MethodSignature m: distinctMethods) {
+                if(ms.getMname().isEmpty()) {
+                    if(m.getPrototype().equals(ms.getPrototype())) {
+                        // unknown name + same prototype (or empty)
+                        return false;
+                    }
+                }
+                else {
+                    if(ms.getMname().equals(m.getMname()) && ms.getPrototype().equals(m.getPrototype())) {
+                        // same method: try to determine good one
+                        if(eMethod.getSignature(true).equals(ms.getMname())) {
+                            // replace
+                            toRemove = m;
+                            for(Entry<Integer, MethodSignature> entry: classPathMethod.entrySet()) {
+                                if(entry.getValue().getMname().equals(ms.getMname())
+                                        && entry.getValue().getPrototype().equals(ms.getPrototype())) {
+                                    oldKey = entry.getKey();
+                                    break distinctLoop;
+                                }
+                            }
+                        }
+                        // keep first one otherwise (only one reference)
+                        return false;
+                    }
+                }
             }
+            if(toRemove != null) {
+                classPathMethod.remove(oldKey);
+                distinctMethods.remove(toRemove);
+            }
+
             if(ms.getMname().isEmpty()) {
                 //return false;
             }
@@ -513,7 +545,7 @@ public class MatchingSearch {
         // One class has several same sigs
         List<MethodSignature> realCandidates = elts.stream()
                 .filter(strArray -> isCompatibleSignature(strArray, SignatureCheck.PROTOTYPE_COMPATIBLE, shorty,
-                        prototype))
+                        prototype, eMethod))
                 .collect(Collectors.toList());
         if(!realCandidates.isEmpty()) {
             List<MethodSignature> strArrays = mergeSignaturesPerClass(realCandidates);
@@ -526,7 +558,7 @@ public class MatchingSearch {
                 if(inner == null) {
                     inner = new InnerMatch(className, file);
                 }
-                inner.addMethod(eMethod.getIndex(), strArray);
+                inner.addMethod(eMethod, strArray);
                 if(realCandidates.size() > 1) {
                     // we can not establish which method is the good one
                     // however, it is good to report that a matching was found (for percentage matching instructions)
