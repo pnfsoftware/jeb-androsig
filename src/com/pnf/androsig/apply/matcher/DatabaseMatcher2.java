@@ -422,6 +422,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                     // same classname (can happen with different versions of same lib)
                     DatabaseReferenceFile bestFile = fileMatches.getMatchedClassFile(dex, eClass, className, ref);
                     if(bestFile != null) {
+                        // Watch out: bestFile may rarely NOT be the valid file (for example if class was moved to a newer artifact)
                         bestLoop: for(InnerMatch cand: bestCandidates) {
                             for(String f: cand.getFiles()) {
                                 if(f.equals(bestFile.file)) {
@@ -431,7 +432,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                             }
                         }
                     }
-                    else {
+                    if(bestCandidate == null) {
                         whiteListClasses.add(eClass.getIndex());
                         List<InnerMatch> newBestCandidates = new ArrayList<>();
                         for(InnerMatch cand: bestCandidates) {

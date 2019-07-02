@@ -5,7 +5,6 @@
  */
 package com.pnf.androsig.apply.matcher;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -112,6 +111,9 @@ public class FileMatches {
                 }
             }
         }
+        if(refFiles != null) {
+            refFiles = new HashSet<>(refFiles);
+        }
         return refFiles;
     }
 
@@ -126,11 +128,15 @@ public class FileMatches {
             usedSigFiles.put(file, refFile);
         }
         matchedClassesFile.put(dexClassIndex, refFile);
+        processNewReferenceFile(refFile);
     }
 
-    private void addMatchedClassFiles(int dexClassIndex, DatabaseReferenceFile refFile) {
+    private void addMatchedClassFiles(int dexClassIndex, DatabaseReferenceFile refFile, boolean recurse) {
         usedSigFiles.put(refFile.file, refFile);
         matchedClassesFile.put(dexClassIndex, refFile);
+        if(recurse) {
+            processNewReferenceFile(refFile);
+        }
     }
 
     public DatabaseReferenceFile removeClassFiles(IDexClass dexClass) {
@@ -159,9 +165,9 @@ public class FileMatches {
 
     public void removeCandidateFile(DatabaseReferenceFile r) {
         Map<Integer, DatabaseReferenceFile> stableElements = new HashMap<>();
-        DatabaseReferenceFile refFile = usedSigFiles.remove(r.file);
+        tempSigFiles.remove(r.file);
        for (Entry<Integer, Set<DatabaseReferenceFile>> entry : candidateMatchedClassesFile.entrySet()) {
-           if (entry.getValue().remove(refFile)) {
+            if(entry.getValue().remove(r)) {
                if (entry.getValue().size() == 1) {
                    // move from candidate
                    stableElements.put(entry.getKey(), entry.getValue().iterator().next());
@@ -170,8 +176,25 @@ public class FileMatches {
        }
        for (Entry<Integer, DatabaseReferenceFile> entry : stableElements.entrySet()) {
             candidateMatchedClassesFile.remove(entry.getKey());
-            addMatchedClassFiles(entry.getKey(), entry.getValue());
+            addMatchedClassFiles(entry.getKey(), entry.getValue(), true);
        }
+    }
+
+    private void processNewReferenceFile(DatabaseReferenceFile refFile) {
+        Map<Integer, DatabaseReferenceFile> stableElements = new HashMap<>();
+        for(Entry<Integer, Set<DatabaseReferenceFile>> entry: candidateMatchedClassesFile.entrySet()) {
+            for(DatabaseReferenceFile f: entry.getValue()) {
+                if(f.file.equals(refFile.file)) {
+                    // move from candidate
+                    stableElements.put(entry.getKey(), refFile);
+                    break;
+                }
+            }
+        }
+        for(Entry<Integer, DatabaseReferenceFile> entry: stableElements.entrySet()) {
+            candidateMatchedClassesFile.remove(entry.getKey());
+            addMatchedClassFiles(entry.getKey(), entry.getValue(), false);
+        }
     }
 
     /**
@@ -198,7 +221,7 @@ public class FileMatches {
                 refFile = new DatabaseReferenceFile(file, null);
                 tempSigFiles.put(file, refFile);
             }
-            // no merge since we do not know the stable versions refFile.mergeVersions(values);
+            refFile.mergeVersions(values);
         }
     }
 
@@ -225,21 +248,7 @@ public class FileMatches {
             addMatchedClassFiles(cl, f);
             return usedSigFiles.get(f);
         }
-        List<String> candidates = new ArrayList<>();
-        for(String cand: fs) {
-            if(usedSigFiles.containsKey(cand)) {
-                candidates.add(cand);
-            }
-        }
-        if(candidates.size() == 1) {
-            f = candidates.get(0);
-            addMatchedClassFiles(cl, f);
-            return usedSigFiles.get(f);
-        }
-        if(candidates.isEmpty()) {
-            candidates = fs;
-        }
-        addCandidates(cl, candidates);
+        addCandidates(cl, fs);
         return null;// maybe duplicated, wait for other part to decide
     }
 
