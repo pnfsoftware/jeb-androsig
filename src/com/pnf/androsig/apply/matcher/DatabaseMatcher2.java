@@ -17,6 +17,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+import com.pnf.androsig.apply.matcher.ContextMatches.CMatch;
+import com.pnf.androsig.apply.matcher.ContextMatches.Match;
 import com.pnf.androsig.apply.matcher.MatchingSearch.InnerMatch;
 import com.pnf.androsig.apply.model.DatabaseReference;
 import com.pnf.androsig.apply.model.DexHashcodeList;
@@ -141,52 +143,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             storeFinalCandidates(unit, sortedClasses, dexHashCodeList, firstRound, false);
         }
 
-        // expand: Add classes and methods found by context (method signature, caller)
-        int size = 0;
-        int oldSize = 0;
-        do {
-            oldSize = size;
-            Set<String> matches = contextMatches.keySet();
-            size = matches.size();
-            for(String oldName: matches) {
-                String candidateNewName = contextMatches.get(oldName);
-                if(!contextMatches.isValid(candidateNewName)) {
-                    continue;
-                }
-                IDexClass cl = unit.getClass(oldName);
-                if(cl != null) {
-                    String newName = fileMatches.getMatchedClass(cl);
-                    if(newName == null) {
-                        InnerMatch innerMatch = getClass(unit, cl, dexHashCodeList, firstRound, true,
-                                candidateNewName);
-                        if(innerMatch != null) {
-                            storeFinalCandidate(unit, cl, innerMatch, firstRound, false);
-                        }
-                        else if(!firstRound) {
-                            fileMatches.addMatchedClass(cl, candidateNewName, null, null);
-                        }
-                    }
-                    else if(!newName.equals(candidateNewName)) {
-                        logger.warn("Conflict for class: Class %s was already renamed to %s. Can not rename to %s",
-                                cl.getName(false), newName, candidateNewName);
-                        contextMatches.setInvalidClass(oldName);
-                    }
-                }
-            }
-        }
-        while(oldSize != size);
-        for(Entry<Integer, String> entry: contextMatches.methodsEntrySet()) {
-            if(!contextMatches.isValid(entry.getValue())) {
-                continue;
-            }
-            IDexMethod m = unit.getMethod(entry.getKey());
-            String newName = fileMatches.getMatchedMethod(m);
-            if(newName != null && !newName.equals(entry.getValue())) {
-                logger.warn("Conflict for method: Method %s was already renamed to %s. Can not rename to %s",
-                        m.getName(false), newName, entry.getValue());
-                contextMatches.setInvalidMethod(entry.getKey());
-            }
-        }
+        applyContextMatch(unit, dexHashCodeList, firstRound, true);
 
         // remove duplicates
         for(Entry<String, List<Integer>> eClass: dupClasses.entrySet()) {
@@ -204,6 +161,136 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         // GC
         dupClasses.clear();
         dupMethods.clear();
+    }
+
+    private void applyContextMatch(IDexUnit unit, DexHashcodeList dexHashCodeList, boolean firstRound,
+            boolean firstPass) {
+        // expand: Add classes and methods found by context (method signature, caller)
+        int size = 0;
+        int oldSize = 0;
+        do {
+            oldSize = size;
+            Set<String> matches = contextMatches.keySet();
+            size = matches.size();
+            Map<IDexClass, CMatch> bindings = new HashMap<>();
+            Map<String, IDexClass> classesMatched = new HashMap<>();
+            for(String oldName: matches) {
+                CMatch cMatch = contextMatches.get(oldName);
+                if(cMatch.processed) {
+                    continue;
+                }
+                if(cMatch.name != null) {
+                    removeWrongMethods(cMatch);
+                    cMatch.processed = true;
+                    continue;
+                }
+                IDexClass cl = unit.getClass(oldName);
+                if(cl == null) {
+                    continue;
+                }
+                String newName = fileMatches.getMatchedClass(cl);
+                if(newName != null) {
+                    continue;
+                }
+                String candidateNewName = null;
+                List<Match> candidateNewNames = cMatch.matches;
+                if(candidateNewNames.size() != 1) {
+                    Match bestCandidate = null;
+                    boolean eq = false;
+                    for(Match cand: candidateNewNames) {
+                        if(cand.newName.equals(cl.getSignature(true))) {
+                            // quick win for samely named classes
+                            bestCandidate = cand;
+                            eq = false;
+                            break;
+                        }
+                        if(bestCandidate == null) {
+                            bestCandidate = cand;
+                        }
+                        else if(cand.count > bestCandidate.count) {
+                            bestCandidate = cand;
+                            eq = false;
+                        }
+                        else if(cand.count == bestCandidate.count) {
+                            eq = true;
+                        }
+                    }
+                    if(eq == true) {
+                        // two candidates at same level, wait for more context matches
+                        continue;
+                    }
+                    candidateNewName = bestCandidate.newName;
+                }
+                else {
+                    candidateNewName = candidateNewNames.get(0).newName;
+                }
+
+                if(fileMatches.containsMatchedClassValue(candidateNewName)) {
+                    // target class already exists! wait for more matching, since this one seems wrong
+                    continue;
+                }
+                IDexClass cl2 = classesMatched.get(candidateNewName);
+                if(cl2 == null) {
+                    bindings.put(cl, cMatch);
+                    classesMatched.put(candidateNewName, cl);
+                    cMatch.name = candidateNewName;
+                }
+                else {
+                    CMatch m = bindings.remove(cl2); // class name matches for 2 classes
+                    if(m != null) {
+                        // first duplicated discovered
+                        m.processed = false;
+                        m.name = null;
+                    }
+                }
+            }
+            for(Entry<IDexClass, CMatch> entry: bindings.entrySet()) {
+                IDexClass cl = entry.getKey();
+                CMatch cMatch = entry.getValue();
+                InnerMatch innerMatch = getClass(unit, cl, dexHashCodeList, firstRound, false, cMatch.name);
+                if(innerMatch != null) {
+                    storeFinalCandidate(unit, cl, innerMatch, firstRound, false);
+                    cMatch.processed = true;
+                }
+                else if(!firstRound) {
+                    // Shoud only happen when detecting classes not in libs
+                    fileMatches.addMatchedClass(cl, cMatch.name, null, null);
+                    cMatch.processed = true;
+                }
+                if(cMatch.processed && cMatch.matches.size() > 1) {
+                    removeWrongMethods(cMatch);
+                }
+                if(!cMatch.processed) {
+                    cMatch.name = null;
+                }
+            }
+        }
+        while(oldSize != size);
+        for(Entry<Integer, String> entry: contextMatches.methodsEntrySet()) {
+            if(!contextMatches.isValid(entry.getValue())) {
+                continue;
+            }
+            IDexMethod m = unit.getMethod(entry.getKey());
+            String newName = fileMatches.getMatchedMethod(m);
+            if(newName != null && !newName.equals(entry.getValue())) {
+                logger.warn("Conflict for method: Method %s was already renamed to %s. Can not rename to %s",
+                        m.getName(false), newName, entry.getValue());
+                contextMatches.setInvalidMethod(entry.getKey());
+            }
+        }
+    }
+
+    private void removeWrongMethods(CMatch cMatch) {
+        // remove wrong methods
+        for(Match match: cMatch.matches) {
+            if(match.newName.equals(cMatch.name)) {
+                continue;
+            }
+            for(Integer wrongMethod: match.methodIndexes) {
+                fileMatches.removeMatchedMethod(wrongMethod);
+                // TODO perform unrenaming
+            }
+        }
     }
 
     private void bindUnrenamedClasses(IDexUnit dex, List<IDexClass> classes, DexHashcodeList dexHashCodeList) {

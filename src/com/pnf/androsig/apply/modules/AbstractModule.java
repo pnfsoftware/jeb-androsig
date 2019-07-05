@@ -56,8 +56,9 @@ public abstract class AbstractModule implements IAndrosigModule {
         return fileMatches.containsMatchedClassValue(className);
     }
 
-    public void saveClassMatch(String oldClass, String newClass, String className, String methodName) {
-        contextMatches.saveClassMatch(oldClass, newClass, className, methodName);
+    public void saveClassMatch(String oldClass, String newClass, String className, Integer eMethodIndex,
+            String methodName) {
+        contextMatches.saveClassMatch(oldClass, newClass, className, eMethodIndex, methodName);
     }
 
     public void saveClassMatchInherit(String oldClass, String newClass, String inherit) {
@@ -68,7 +69,8 @@ public abstract class AbstractModule implements IAndrosigModule {
         return contextMatches.saveMethodMatch(oldMethod, newMethod);
     }
 
-    public void saveParamMatching(String oldProto, String newProto, String className, String methodName) {
-        contextMatches.saveParamMatching(oldProto, newProto, className, methodName);
+    public void saveParamMatching(String oldProto, String newProto, String className, Integer eMethodIndex,
+            String methodName) {
+        contextMatches.saveParamMatching(oldProto, newProto, className, eMethodIndex, methodName);
     }
 }

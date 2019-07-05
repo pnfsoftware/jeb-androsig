@@ -157,20 +157,20 @@ public class ApkCallerModule extends AbstractModule {
                 || !isSignatureCompatible(unit, expectedTokens[3], currentTokens[3])) {
             return;
         }
-        applyClassMatching(expectedTokens, currentTokens);
+        applyClassMatching(expectedTokens, currentTokens, m.getIndex());
         applyMethodMatching(m, expectedTokens[0], expectedTokens[1], expectedParams, currentParams);
     }
 
-    private void applyClassMatching(String[] expectedTokens, String[] currentTokens) {
-        saveClassMatch(currentTokens[0], expectedTokens[0], expectedTokens[0], expectedTokens[1]);
-        saveClassMatch(currentTokens[3], expectedTokens[3], expectedTokens[0], expectedTokens[1]);
+    private void applyClassMatching(String[] expectedTokens, String[] currentTokens, Integer eMethodIndex) {
+        saveClassMatch(currentTokens[0], expectedTokens[0], expectedTokens[0], eMethodIndex, expectedTokens[1]);
+        saveClassMatch(currentTokens[3], expectedTokens[3], expectedTokens[0], eMethodIndex, expectedTokens[1]);
     }
 
     private void applyMethodMatching(IDexMethod m, String cname, String name, List<String> expectedParams,
             List<String> currentParams) {
         saveMethodMatch(m.getIndex(), name);
         for(int i = 0; i < expectedParams.size(); i++) {
-            saveClassMatch(currentParams.get(i), expectedParams.get(i), cname, name);
+            saveClassMatch(currentParams.get(i), expectedParams.get(i), cname, m.getIndex(), name);
         }
     }
 
@@ -241,7 +241,7 @@ public class ApkCallerModule extends AbstractModule {
             List<String> expectedParams = expectedsParams.get(resol.getKey());
             List<String> currentParams = currentsParams.get(resol.getValue());
             String[] currentTokens = currentsSplits.get(resol.getValue());
-            applyClassMatching(expectedTokens, currentTokens);
+            applyClassMatching(expectedTokens, currentTokens, null); // FIXME
             IDexMethod m = unit.getMethod(resol.getValue());
             if(m == null) {
                 // TODO cannot retrieve method??
@@ -275,14 +275,15 @@ public class ApkCallerModule extends AbstractModule {
             // apply if some
             for(int i = 0; i < mergedParams.size(); i++) {
                 if(!Strings.isBlank(mergedParams.get(i))) {
-                    saveClassMatch(mergedParams.get(i), expectedParams.get(i), expectedTokens[0], expectedTokens[1]);
+                    saveClassMatch(mergedParams.get(i), expectedParams.get(i), expectedTokens[0], null,
+                            expectedTokens[1]); // FIXME
                 }
             }
             if(!Strings.isBlank(mergedTokens[0])) {
-                saveClassMatch(mergedTokens[0], expectedTokens[0], expectedTokens[0], expectedTokens[1]);
+                saveClassMatch(mergedTokens[0], expectedTokens[0], expectedTokens[0], null, expectedTokens[1]); // FIXME
             }
             if(!Strings.isBlank(mergedTokens[3])) {
-                saveClassMatch(mergedTokens[3], expectedTokens[3], expectedTokens[0], expectedTokens[1]);
+                saveClassMatch(mergedTokens[3], expectedTokens[3], expectedTokens[0], null, expectedTokens[1]); // FIXME
             }
         }
     }

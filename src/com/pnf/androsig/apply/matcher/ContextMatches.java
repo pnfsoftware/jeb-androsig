@@ -5,6 +5,7 @@
  */
 package com.pnf.androsig.apply.matcher;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -23,15 +24,40 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
  *
  */
 public class ContextMatches {
+    public static class CMatch {
+        List<Match> matches = new ArrayList<>();
+        boolean processed = false;
+        String name = null;
+    }
+
+    public static class Match {
+        String newName;
+        int count;
+        List<Integer> methodIndexes = new ArrayList<>();
+
+        public Match(String newName) {
+            this.newName = newName;
+        }
+
+        public void addMethod(Integer methodIndex) {
+            count++;
+            if(methodIndex != null) {
+                // keep trace of wrong method indexes: were badly renamed, need to remove
+                methodIndexes.add(methodIndex);
+            }
+        }
+    }
+
     private final ILogger logger = GlobalLog.getLogger(ContextMatches.class);
 
     private static final String INVALID_MATCH = "INVALID";
 
-    private Map<String, String> contextMatches = new HashMap<>();
+    private Map<String, CMatch> contextMatches = new HashMap<>();
 
     private Map<Integer, String> methodMatches = new HashMap<>();
 
-    public void saveParamMatching(String oldProto, String newProto, String className, String methodName) {
+    public void saveParamMatching(String oldProto, String newProto, String className, Integer eMethodIndex,
+            String methodName) {
         // extract return type
         String[] tokens1 = oldProto.substring(1).split("\\)");
         if(newProto.isEmpty()) {
@@ -63,13 +89,14 @@ public class ContextMatches {
                     oldClass = oldClass.substring(1);
                     newClass = newClass.substring(1);
                 }
-                saveClassMatch(oldClass, newClass, className, methodName);
+                saveClassMatch(oldClass, newClass, className, eMethodIndex, methodName);
             }
         }
     }
 
-    private void saveClassMatch(String oldClass, String newClass, BoundType type, String... params) {
-        Boolean res = saveClassMatch(oldClass, newClass);
+    private void saveClassMatch(String oldClass, String newClass, Integer eMethodIndex, BoundType type,
+            String... params) {
+        Boolean res = saveClassMatch(oldClass, newClass, eMethodIndex);
         if(res == Boolean.FALSE) {
             return; // interrupt
         }
@@ -95,7 +122,7 @@ public class ContextMatches {
         if(DexUtilLocal.isInnerClass(newClass)) {
             oldClass = DexUtilLocal.getParentSignature(oldClass);
             newClass = DexUtilLocal.getParentSignature(newClass);
-            saveClassMatch(oldClass, newClass, type, params);
+            saveClassMatch(oldClass, newClass, eMethodIndex, type, params);
         }
     }
 
@@ -104,68 +131,62 @@ public class ContextMatches {
     }
 
     public void saveClassMatch(String oldClass, String newClass, String innerClass) {
-        saveClassMatch(oldClass, newClass, BoundType.InnerClass, innerClass);
+        saveClassMatch(oldClass, newClass, null, BoundType.InnerClass, innerClass);
     }
 
     public void saveClassMatchInherit(String oldClass, String newClass, String inherit) {
-        saveClassMatch(oldClass, newClass, BoundType.Inherit, inherit);
+        saveClassMatch(oldClass, newClass, null, BoundType.Inherit, inherit);
     }
 
-    public void saveClassMatch(String oldClass, String newClass, String className, String methodName) {
-        saveClassMatch(oldClass, newClass, BoundType.ParamMatching, className, methodName);
+    public void saveClassMatch(String oldClass, String newClass, String className, Integer eMethodIndex,
+            String methodName) {
+        saveClassMatch(oldClass, newClass, eMethodIndex, BoundType.ParamMatching, className, methodName);
     }
 
     public void saveClassMatchUnkownFile(String oldClass, String newClass) {
-        saveClassMatch(oldClass, newClass, BoundType.UnknownSourceFile);
-    }
-
-    public void setInvalidClass(String key) {
-        contextMatches.put(key, INVALID_MATCH);
+        saveClassMatch(oldClass, newClass, null, BoundType.UnknownSourceFile);
     }
 
     public void setInvalidMethod(Integer key) {
         methodMatches.put(key, INVALID_MATCH);
     }
 
-    private Boolean saveClassMatch(String oldClass, String newClass) {
+    private Match getMatch(CMatch value, String newName) {
+        return getMatch(value.matches, newName);
+    }
+
+    private Match getMatch(List<Match> value, String newName) {
+        for(Match val: value) {
+            if(val.newName.equals(newName)) {
+                return val;
+            }
+        }
+        return null;
+    }
+
+    private Boolean saveClassMatch(String oldClass, String newClass, Integer methodIndex) {
         if (DexUtilLocal.getInnerClassLevel(oldClass) != DexUtilLocal.getInnerClassLevel(newClass)) {
             return Boolean.FALSE;
         }
         if(oldClass.charAt(0) != 'L' || newClass.charAt(0) != 'L') {
             return Boolean.FALSE;
         }
-        String value = contextMatches.get(oldClass);
-        if(value != null) {
-            if(value.equals(INVALID_MATCH)) {
-                return Boolean.FALSE;
-            }
-            else if(!value.equals(newClass)) {
-                logger.error("Conflict: class %s has two candidates %s and new %s", oldClass, value, newClass);
-                contextMatches.put(oldClass, INVALID_MATCH);
-                return Boolean.FALSE;
-            }
-            return null;
+        CMatch value = contextMatches.get(oldClass);
+        if(value == null) {
+            value = new CMatch();
+            contextMatches.put(oldClass, value);
         }
-        if(contextMatches.containsValue(newClass) && !oldClass.equals(newClass)) { // allow old binding to new binding
-            String conflictVal = null;
-            for(Entry<String, String> c: contextMatches.entrySet()) {
-                if(c.getValue().equals(newClass)) {
-                    conflictVal = c.getKey();
-                    break;
-                }
-            }
-            if(newClass.equals(conflictVal)) {
-                // class not renamed, in lib
-                return Boolean.FALSE;
-            }
-            // only correct case is inner class partly renamed
-            logger.error("Conflict: candidate %s has two class matching: %s and new %s", newClass, conflictVal,
-                    oldClass);
-            contextMatches.put(oldClass, INVALID_MATCH);
-            contextMatches.put(newClass, INVALID_MATCH);
+        Match val = getMatch(value, newClass);
+        if(val == null) {
+            val = new Match(newClass);
+            value.matches.add(val);
+        }
+        val.addMethod(methodIndex);
+        if(value.processed && !newClass.equals(value.name)) {
+            // wrong class match attempt
+            value.processed = false;
             return Boolean.FALSE;
         }
-        contextMatches.put(oldClass, newClass);
         return Boolean.TRUE;
     }
 
@@ -184,15 +205,11 @@ public class ContextMatches {
         return true;
     }
 
-    public Set<Entry<String, String>> entrySet() {
-        return contextMatches.entrySet();
-    }
-
     public Set<String> keySet() {
         return new HashSet<>(contextMatches.keySet());
     }
 
-    public String get(String key) {
+    public CMatch get(String key) {
         return contextMatches.get(key);
     }
 

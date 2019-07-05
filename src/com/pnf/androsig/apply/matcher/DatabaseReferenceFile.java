@@ -62,7 +62,7 @@ public class DatabaseReferenceFile {
                     merged.addAll(versionsList);
                 }
                 else {
-                    List<String> tmp = CollectionUtil.intersection(versionsList, merged);
+                    List<String> tmp = new ArrayList<>(CollectionUtil.intersect(versionsList, merged));
                     if(tmp.isEmpty()) {
                         // 2 options: either method is wrong or old method included
                         // it means that we make the choice here that previous version is still the good one

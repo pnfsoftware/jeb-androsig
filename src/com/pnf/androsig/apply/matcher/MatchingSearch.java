@@ -371,7 +371,8 @@ public class MatchingSearch {
         // meaning: if all methods really match (without looking at prototypes)
         if(!firstRound && !firstPass && validFiles.size() > 1) {
             // restrict list of available files
-            validFiles = CollectionUtil.intersection(validFiles, new ArrayList<>(fileMatches.getSignatureFileUsed()));
+            validFiles = new ArrayList<>(
+                    CollectionUtil.intersect(validFiles, new ArrayList<>(fileMatches.getSignatureFileUsed())));
         }
         if(validFiles.isEmpty() && !firstRound) {
             return false;
@@ -402,7 +403,7 @@ public class MatchingSearch {
             }
             List<String> candidateFiles = ref.getFilesContainingTightHashcode(mhash_tight);
             if(candidateFiles != null) {
-                candidateFiles = CollectionUtil.intersection(validFiles, candidateFiles);
+                candidateFiles = new ArrayList<>(CollectionUtil.intersect(validFiles, candidateFiles));
                 if(firstRound && candidateFiles.size() > 10) {
                     // do not process here: will be considered as small method
                     easyMatches.add(eMethod);

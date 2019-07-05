@@ -349,7 +349,7 @@ public class FileMatches {
         //if(prototypes.equals(sig.getPrototype())) {
         //    return;
         //}
-        contextMatches.saveParamMatching(prototypes, ms.getPrototype(), ms.getCname(), ms.getMname());
+        contextMatches.saveParamMatching(prototypes, ms.getPrototype(), ms.getCname(), m.getIndex(), ms.getMname());
     }
 
     public String getMatchedMethod(IDexMethod m) {
