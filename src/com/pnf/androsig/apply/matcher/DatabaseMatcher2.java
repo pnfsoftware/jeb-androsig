@@ -364,7 +364,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
     protected InnerMatch getClass(IDexUnit dex, IDexClass eClass, DexHashcodeList dexHashCodeList, boolean firstRound,
             boolean unique, String hintName) {
         List<? extends IDexMethod> methods = eClass.getMethods();
-        if(methods == null || methods.size() == 0) {
+        if(hintName == null && (methods == null || methods.size() == 0)) {
             // since signature only contains non empty classes, there is no chance that we found by matching
             return null;
         }
@@ -406,6 +406,11 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                     matching.processInnerClass(file, eClass, methods, innerClass, innerLevel,
                             innerSignatures);
                     ignoredClasses.remove(eClass.getIndex());
+
+                    if(matching.isEmpty() && hintName != null) {
+                        // no matching/no methods?
+                        return new InnerMatch(hintName, file.file);
+                    }
                 }
                 else {
                     //System.out.println("No reference file for " + parentSignature);
@@ -544,7 +549,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                                             break;
                                         }
                                     }
-                                    if(valid) {
+                                    if(valid && hintName == null) {
                                         // file not determined, save the hint
                                         contextMatches.saveClassMatchUnkownFile(originalSignature, className);
                                     }
