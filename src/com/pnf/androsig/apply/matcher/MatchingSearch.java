@@ -245,13 +245,12 @@ public class MatchingSearch {
     private List<IAndrosigModule> modules;
     private boolean firstRound;
     private boolean firstPass;
-    private boolean safe;
 
     private Map<String, Map<String, InnerMatch>> fileCandidates = new HashMap<>(); // file -> (classname->count)
 
     public MatchingSearch(IDexUnit dex, DexHashcodeList dexHashCodeList,
             DatabaseReference ref, DatabaseMatcherParameters params, FileMatches fileMatches,
-            List<IAndrosigModule> modules, boolean firstRound, boolean firstPass, boolean safe) {
+            List<IAndrosigModule> modules, boolean firstRound, boolean firstPass) {
         this.dex = dex;
         this.dexHashCodeList = dexHashCodeList;
         this.ref = ref;
@@ -260,7 +259,6 @@ public class MatchingSearch {
         this.modules = modules;
         this.firstRound = firstRound;
         this.firstPass = firstPass;
-        this.safe = safe;
     }
 
     private List<MethodSignature> getInnerClassSignatureLines(DatabaseReferenceFile file, String mhash, boolean tight,

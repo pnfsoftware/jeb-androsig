@@ -76,9 +76,8 @@ public class MethodFinderModule extends AbstractModule {
             }
             String className = entry.getValue(); //eClass.getSignature(true); // watch out!! if class was not renamed (for example, anonymous classes)
 
-            boolean safe = false;
             MatchingSearch search = new MatchingSearch(dex, dexHashCodeList, ref, params, fileMatches,
-                    modules, firstRound, false, safe);
+                    modules, firstRound, false);
             List<MethodSignature> alreadyMatches = getAlreadyMatched(dex, className, methods, search, refFile);
             int matchedMethodsSize = alreadyMatches.size();
             do {
@@ -201,12 +200,6 @@ public class MethodFinderModule extends AbstractModule {
                             alreadyMatches.add(strArray);
                         }
                     }
-                }
-                if(matchedMethodsSize == alreadyMatches.size() && !safe) {
-                    safe = true;
-                    search = new MatchingSearch(dex, dexHashCodeList, ref, params, fileMatches, modules,
-                            firstRound, false, safe);
-                    matchedMethodsSize++;
                 }
             }
             while(matchedMethodsSize != alreadyMatches.size());

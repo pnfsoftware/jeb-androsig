@@ -307,7 +307,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             }
 
             MatchingSearch fileCandidates = new MatchingSearch(dex, dexHashCodeList, ref, params, fileMatches,
-                    modules, true, true, false);
+                    modules, true, true);
             int innerLevel = DexUtilLocal.getInnerClassLevel(originalSignature);
             fileCandidates.processClass(this, eClass, methods, innerLevel, files);
 
@@ -328,7 +328,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             }
             else {
                 fileCandidates = new MatchingSearch(dex, dexHashCodeList, ref, params, fileMatches, modules,
-                        false, true, false);
+                        false, true);
                 innerLevel = DexUtilLocal.getInnerClassLevel(originalSignature);
                 fileCandidates.processClass(this, eClass, methods, innerLevel, files);
 
@@ -370,7 +370,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         }
 
         MatchingSearch matching = new MatchingSearch(dex, dexHashCodeList, ref, params, fileMatches,
-                modules, firstRound, unique, false);
+                modules, firstRound, unique);
         String originalSignature = eClass.getSignature(true);
         int innerLevel = DexUtilLocal.getInnerClassLevel(originalSignature);
         boolean parentClassFound = false;
