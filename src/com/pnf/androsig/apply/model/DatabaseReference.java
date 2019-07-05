@@ -185,14 +185,20 @@ public class DatabaseReference {
     @SuppressWarnings("resource")
     public Couple<String, List<String>> getParentForClassname(DatabaseReferenceFile refFile, String className) {
         ISignatureFile sigFile = signatureFileFactory.getSignatureFile(refFile.file);
-        List<MethodSignature> sigs = sigFile.getParent(className);
-        if(sigs == null || sigs.isEmpty()) {
+        List<MethodSignature> rawSigs = sigFile.getParent(className);
+        if(rawSigs == null || rawSigs.isEmpty()) {
             return null;
         }
         Set<String> versions = refFile.getAvailableVersions();
-        sigs = filterVersions(sigs, versions);
+        List<MethodSignature> sigs = filterVersions(rawSigs, versions);
         if(sigs.size() != 1) {
-            return null;
+            logger.warn("Parent of %s can not be found for current version", className);
+            if(rawSigs.size() == 1) {
+                sigs = rawSigs;
+            }
+            else {
+                return null;
+            }
         }
         MethodSignature sig = sigs.get(0);
         String parent = null;
