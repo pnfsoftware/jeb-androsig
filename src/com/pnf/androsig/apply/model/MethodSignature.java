@@ -25,8 +25,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.pnf.androsig.common.SignatureHandler;
+import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
 import com.pnfsoftware.jeb.util.encoding.Conversion;
 import com.pnfsoftware.jeb.util.format.Strings;
 
@@ -538,13 +540,23 @@ public class MethodSignature {
      * @param mergeVersions
      * @return
      */
-    public static MethodSignature mergeSignatures(List<MethodSignature> results, boolean mergeVersions) {
+    public static MethodSignature mergeSignatures(List<MethodSignature> results, boolean mergeVersions,
+            IDexMethod eMethod) {
         if(results == null || results.isEmpty()) {
             return null;
         }
         if(results.size() == 1) {
             return results.get(0);
         }
+        String mname = eMethod.getName(true);
+        List<MethodSignature> res2 = results.stream().filter(s -> s.getMname().equals(mname))
+                .collect(Collectors.toList());
+        if(!res2.isEmpty()) {
+            results = res2;
+            if(results.size() == 1) {
+                return results.get(0);
+            }
+        } // else no method with same name
         String[] result = new String[5];
         for(int i = 0; i < 5; i++) {
             for(MethodSignature ress: results) {

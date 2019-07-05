@@ -549,7 +549,7 @@ public class MatchingSearch {
                         prototype, eMethod))
                 .collect(Collectors.toList());
         if(!realCandidates.isEmpty()) {
-            List<MethodSignature> strArrays = mergeSignaturesPerClass(realCandidates);
+            List<MethodSignature> strArrays = mergeSignaturesPerClass(realCandidates, eMethod);
             for(MethodSignature strArray: strArrays) {
                 String className = strArray.getCname();
                 if(DexUtilLocal.getInnerClassLevel(className) != innerLevel) {
@@ -696,21 +696,7 @@ public class MatchingSearch {
             if(results.size() == 1) {
                 return results.get(0);
             }
-            if(!firstRound && !firstPass && check == SignatureCheck.PROTOTYPE_STRICT && safe) {
-                // kind of last resort when no signature match.
-                // in addition, this happens quite often when implementing/extending public api
-                // it allows other methods with same signature to be distinguished in some cases
-                String methodName = eMethod.getName(true);
-                List<MethodSignature> sameNames = results.stream().filter(m -> m.getMname().equals(methodName))
-                        .collect(Collectors.toList());
-                if(!sameNames.isEmpty()) {
-                    if(sameNames.size() == 1) {
-                        return sameNames.get(0);
-                    }
-                    results = sameNames;
-                }
-            }
-            return MethodSignature.mergeSignatures(results, true);
+            return MethodSignature.mergeSignatures(results, true, eMethod);
         }
         return null;
     }
@@ -795,7 +781,7 @@ public class MatchingSearch {
         }
     }
 
-    static List<MethodSignature> mergeSignaturesPerClass(List<MethodSignature> results) {
+    static List<MethodSignature> mergeSignaturesPerClass(List<MethodSignature> results, IDexMethod eMethod) {
         if(results.size() < 2) {
             return results;
         }
@@ -811,7 +797,7 @@ public class MatchingSearch {
         }
         List<MethodSignature> merged = new ArrayList<>();
         for(List<MethodSignature> values: sigs.values()) {
-            merged.add(MethodSignature.mergeSignatures(values, true));
+            merged.add(MethodSignature.mergeSignatures(values, true, eMethod));
         }
         return merged;
     }

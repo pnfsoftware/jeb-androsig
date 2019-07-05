@@ -187,7 +187,7 @@ public class MethodFinderModule extends AbstractModule {
                             strArray = strArrays.get(0);
                         }
                         else {
-                            strArray = MethodSignature.mergeSignatures(strArrays, false);
+                            strArray = MethodSignature.mergeSignatures(strArrays, false, eMethod);
                             if(strArray.getPrototype().isEmpty()) {
                                 strArray = null;
                             }
