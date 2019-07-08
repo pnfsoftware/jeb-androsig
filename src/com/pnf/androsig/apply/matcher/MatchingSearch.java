@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -234,6 +235,73 @@ public class MatchingSearch {
                     refFile.mergeVersions(classPathMethod.values());
                 }
             }
+        }
+        
+        public static InnerMatch mergeCandidates(IDexUnit dex, List<InnerMatch> newBestCandidates,
+                boolean intersection) {
+            Map<Integer, MethodSignature> classPathMethod = new HashMap<>();
+            List<Integer> doNotRenameIndexes = new ArrayList<>();
+            boolean oneMatch = false;
+            Iterator<InnerMatch> iter = newBestCandidates.iterator();
+            InnerMatch first = iter.next();
+            List<String> files = new ArrayList<>();
+            for(Entry<Integer, MethodSignature> entry: first.entrySet()) {
+                MethodSignature val = entry.getValue();
+                classPathMethod.put(entry.getKey(),
+                        new MethodSignature(val.getCname(), val.getMname(), val.getShorty(), val.getPrototype(), null));
+            }
+            doNotRenameIndexes.addAll(first.doNotRenameIndexes);
+            oneMatch &= first.oneMatch;
+            files.addAll(first.getFiles());
+            while (iter.hasNext()) {
+                InnerMatch nMatch = iter.next();
+                Set<Integer> toRemove = new HashSet<>();
+                if(intersection) {
+                    // secure mode validate that method is present in all files
+                    for(Entry<Integer, MethodSignature> entry: classPathMethod.entrySet()) {
+                        MethodSignature nVal = nMatch.getMethod(entry.getKey());
+                        if(nVal == null || !nVal.getMname().equals(entry.getValue().getMname())
+                                || !nVal.getPrototype().equals(entry.getValue().getPrototype())) {
+                            toRemove.add(entry.getKey());
+                        }
+                    }
+                    for(Integer r: toRemove) {
+                        classPathMethod.remove(r);
+                    }
+                }
+                else {
+                    // remove conflicts on unions
+                    List<Integer> processed = new ArrayList<>();
+                    for(Entry<Integer, MethodSignature> entry: classPathMethod.entrySet()) {
+                        processed.add(entry.getKey());
+                        MethodSignature nVal = nMatch.getMethod(entry.getKey());
+                        if(nVal == null) {
+                            continue;
+                        }
+                        if(!nVal.getMname().equals(entry.getValue().getMname())
+                                || !nVal.getPrototype().equals(entry.getValue().getPrototype())) {
+                            toRemove.add(entry.getKey()); // there exist an alternative method match: be careful
+                        }
+                    }
+                    for(Entry<Integer, MethodSignature> entry: nMatch.entrySet()) {
+                        if(processed.contains(entry.getKey())) {
+                            continue;
+                        }
+                        classPathMethod.put(entry.getKey(), entry.getValue());
+                    }
+                }
+                doNotRenameIndexes.addAll(nMatch.doNotRenameIndexes);
+                oneMatch &= nMatch.oneMatch;
+                files.addAll(nMatch.getFiles());
+            }
+            InnerMatch innerMatch = new InnerMatch(first.getCname(), files);
+            for(Entry<Integer, MethodSignature> entry: classPathMethod.entrySet()) {
+                innerMatch.addMethod(dex.getMethod(entry.getKey()), entry.getValue());
+            }
+            innerMatch.doNotRenameIndexes = doNotRenameIndexes;
+            innerMatch.oneMatch = oneMatch;
+            innerMatch.validateVersions();
+            return innerMatch;
         }
     }
 

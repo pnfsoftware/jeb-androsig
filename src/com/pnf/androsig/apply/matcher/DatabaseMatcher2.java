@@ -458,7 +458,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
 
         findSmallMethods(matching, originalSignature, methods, unique);
 
-        List<InnerMatch> bestCandidates = filterMaxMethodsMatch(matching);
+        List<InnerMatch> bestCandidates = filterMaxMethodsMatch(dex, matching);
 
         InnerMatch bestCandidate = null;
         if(bestCandidates.isEmpty()) {
@@ -500,16 +500,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         }
         else {
             if(!firstRound) {
-                String className = null;
-                for(InnerMatch cand: bestCandidates) {
-                    if(className == null) {
-                        className = cand.getCname();
-                    }
-                    else if(!className.equals(cand.getCname())) {
-                        className = null;
-                        break;
-                    }
-                }
+                String className = getUniqueName(bestCandidates);
                 if(className != null) {
                     // same classname (can happen with different versions of same lib)
                     DatabaseReferenceFile bestFile = fileMatches.getMatchedClassFile(dex, eClass, className, ref);
@@ -539,7 +530,7 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                         else {
                             if(hintName != null || !newBestCandidates.isEmpty()) {
                                 if(!unique) {
-                                    bestCandidate = mergeCandidates(dex, newBestCandidates);
+                                    bestCandidate = InnerMatch.mergeCandidates(dex, newBestCandidates, true);
                                 }
                                 else {
                                     boolean valid = false;
@@ -607,48 +598,6 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             return complexSignatureFound > 1;
         }
         return true;
-    }
-
-    private InnerMatch mergeCandidates(IDexUnit dex, List<InnerMatch> newBestCandidates) {
-        Map<Integer, MethodSignature>  classPathMethod = new HashMap<>();
-        List<Integer> doNotRenameIndexes = new ArrayList<>();
-        boolean oneMatch = false;
-        Iterator<InnerMatch> iter = newBestCandidates.iterator();
-        InnerMatch first = iter.next();
-        List<String> files = new ArrayList<>();
-        for(Entry<Integer, MethodSignature> entry: first.entrySet()) {
-            MethodSignature val = entry.getValue();
-            classPathMethod.put(entry.getKey(),
-                    new MethodSignature(val.getCname(), val.getMname(), val.getShorty(), val.getPrototype(), null));
-            doNotRenameIndexes.addAll(first.doNotRenameIndexes);
-            oneMatch |= first.oneMatch;
-            files.addAll(first.getFiles());
-        }
-        while (iter.hasNext()) {
-            InnerMatch nMatch = iter.next();
-            Set<Integer> toRemove = new HashSet<>();
-            for (Entry<Integer, MethodSignature> entry : classPathMethod.entrySet()) {
-                MethodSignature nVal = nMatch.getMethod(entry.getKey());
-                if(nVal == null || !nVal.getMname().equals(entry.getValue().getMname())
-                        || !nVal.getPrototype().equals(entry.getValue().getPrototype())) {
-                    toRemove.add(entry.getKey());
-                }
-            }
-            for (Integer r : toRemove) {
-                classPathMethod.remove(r);
-            }
-            doNotRenameIndexes.addAll(nMatch.doNotRenameIndexes);
-            oneMatch |= nMatch.oneMatch;
-            files.addAll(nMatch.getFiles());
-        }
-        InnerMatch innerMatch = new InnerMatch(first.getCname(), files);
-        for(Entry<Integer, MethodSignature> entry: classPathMethod.entrySet()) {
-            innerMatch.addMethod(dex.getMethod(entry.getKey()), entry.getValue());
-        }
-        innerMatch.doNotRenameIndexes = doNotRenameIndexes;
-        innerMatch.oneMatch = oneMatch;
-        innerMatch.validateVersions();
-        return innerMatch;
     }
 
     private void filterHierarchy(MatchingSearch fileCandidates, IDexClass eClass) {
@@ -741,30 +690,110 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
         return true;
     }
 
-    private static List<InnerMatch> filterMaxMethodsMatch(MatchingSearch fileCandidates) {
+    private Boolean internalUse = null;
+
+    private List<InnerMatch> filterMaxMethodsMatch(IDexUnit dex, MatchingSearch fileCandidates) {
+        // First retrieve best candidates with 2 splits (internal vs non internal)
         Integer higherOccurence = 0;
         List<InnerMatch> bestCandidates = new ArrayList<>();
+        Integer higherOccurenceInternal = 0;
+        List<InnerMatch> bestCandidatesInternal = new ArrayList<>();
+        Map<String, List<InnerMatch>> candidatesPerName = new HashMap<>();
         for(Entry<String, Map<String, InnerMatch>> cand: fileCandidates.entrySet()) {
-            higherOccurence = getBestCandidatesInner(bestCandidates, cand.getValue().values(), higherOccurence);
+            for(Entry<String, InnerMatch> entry: cand.getValue().entrySet()) {
+                String classname = entry.getKey();
+                InnerMatch candClass = entry.getValue();
+                List<InnerMatch> value = candidatesPerName.get(classname);
+                if(value == null) {
+                    value = new ArrayList<>();
+                    candidatesPerName.put(classname, value);
+                }
+                value.add(candClass);
+
+                if(classname.startsWith("Landroid/support/") && classname.contains("/internal/")) {
+                    if(candClass.methodsSize() > higherOccurenceInternal) {
+                        higherOccurenceInternal = candClass.methodsSize();
+                        bestCandidatesInternal.clear();
+                        bestCandidatesInternal.add(candClass);
+                    }
+                    else if(candClass.methodsSize() == higherOccurenceInternal) {
+                        bestCandidatesInternal.add(candClass);
+                    }
+                }
+                else if(candClass.methodsSize() > higherOccurence) {
+                    higherOccurence = candClass.methodsSize();
+                    bestCandidates.clear();
+                    bestCandidates.add(candClass);
+                }
+                else if(candClass.methodsSize() == higherOccurence) {
+                    bestCandidates.add(candClass);
+                }
+            }
         }
+
+        // Second, decide if use internal or not (look for alternatives)
+        if(!bestCandidatesInternal.isEmpty()) {
+            String shortName = getUniqueName(bestCandidates);
+            String internalName = getUniqueName(bestCandidatesInternal);
+            if(shortName != null && internalName != null && shortName.equals(internalName.replace("/internal/", "/"))) {
+                // same classes;
+                if(internalUse == null) {
+                    internalUse = higherOccurenceInternal > higherOccurence;
+                }
+                if(internalUse) {
+                    candidatesPerName.get(internalName).addAll(candidatesPerName.get(shortName));
+                    bestCandidates = bestCandidatesInternal;
+                }
+                else {
+                    candidatesPerName.get(shortName).addAll(candidatesPerName.get(internalName));
+                }
+            }
+            else {
+                if(higherOccurenceInternal > higherOccurence) {
+                    bestCandidates = bestCandidatesInternal;
+                }
+            }
+        }
+
+        // Quick-win on one result class
+        if(bestCandidates.size() == 1) {
+            // merge other methods?
+            InnerMatch first = bestCandidates.get(0);
+
+            List<InnerMatch> altCandidates = candidatesPerName.get(first.getCname());
+            if(altCandidates.size() <= 1) {
+                return bestCandidates;
+            }
+            altCandidates.remove(first);
+            altCandidates.add(0, first);// set main candidate at beginning
+            InnerMatch newCand = InnerMatch.mergeCandidates(dex, altCandidates, false);
+            bestCandidates.clear();
+            bestCandidates.add(newCand);
+            return bestCandidates; // still keep precedence for first file
+        }
+
+        //String name = getUniqueName(bestCandidates);
+        //if(name != null) {
+        // merge later for now
+        //}
         return bestCandidates;
     }
 
-    private static Integer getBestCandidatesInner(List<InnerMatch> bestCandidates, Collection<InnerMatch> candidates,
-            Integer higherOccurence) {
-        for(InnerMatch candClass: candidates) {
-            if(candClass.methodsSize() > higherOccurence) {
-                higherOccurence = candClass.methodsSize();
-                bestCandidates.clear();
-                bestCandidates.add(candClass);
-            }
-            else if(candClass.methodsSize() == higherOccurence) {
-                bestCandidates.add(candClass);
+    private static String getUniqueName(List<InnerMatch> bestCandidates) {
+        String className = null;
+        if(!bestCandidates.isEmpty()) {
+            for(InnerMatch cand: bestCandidates) {
+                if(className == null) {
+                    className = cand.getCname();
+                }
+                else if(!className.equals(cand.getCname())) {
+                    className = null;
+                    break;
             }
         }
-        return higherOccurence;
+        }
+        return className;
     }
-
 
     protected boolean storeFinalCandidate(IDexUnit unit, IDexClass eClass, InnerMatch innerMatch, boolean firstRound) {
         return storeFinalCandidate(unit, eClass, innerMatch, firstRound, true);
