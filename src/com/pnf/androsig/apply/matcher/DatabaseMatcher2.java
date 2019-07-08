@@ -6,10 +6,8 @@
 package com.pnf.androsig.apply.matcher;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -818,7 +816,6 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             String newClass = innerMatch.getCname();
             if(!DexUtilLocal.isInnerClass(oldClass)) {
                 // inner class match a non inner class => dangerous
-                fileMatches.removeClassFiles(eClass);
                 return false;
             }
             String parentSignature = DexUtilLocal.getParentSignature(oldClass);
@@ -826,7 +823,6 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
             if(!parentSignature.equals(parentMatchSignature)) {
                 // expect parent match: otherwise, wait for parent match
                 if(firstRound) {
-                    fileMatches.removeClassFiles(eClass);
                     return false;
                 }
                 else {
@@ -845,17 +841,14 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                         if(oldParentMatch != null) {
                             // parent class has already a match: must be the same
                             if(!oldParentMatch.equals(newParentClass)) {
-                                fileMatches.removeClassFiles(eClass);
                                 return false;
                             }
                         }
                         else if(newParentClassObj != null && fileMatches.containsMatchedClass(newParentClassObj)) {
                             // destination class is being/has been renamed but does not match the original class
-                            fileMatches.removeClassFiles(eClass);
                             return false;
                         }
                     }
-                    contextMatches.saveClassMatch(oldClass, newClass, innerMatch.getCname());
                 }
             }
         }
@@ -871,6 +864,10 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                         Strings.join(",", innerMatch.getFiles()));
                 fileMatches.addMatchedClass(eClass, innerMatch.getCname(), innerMatch.getFiles(),
                         innerMatch.getUsedMethodSignatures());
+                if(DexUtilLocal.isInnerClass(innerMatch.getCname())) {
+                    // Add parent as context matches
+                    contextMatches.saveClassMatch(originalSignature, innerMatch.getCname(), innerMatch.getCname());
+                }
                 List<Integer> tempArrayList = dupClasses.get(innerMatch.getCname());
                 if(tempArrayList != null) {
                     tempArrayList.add(eClass.getIndex());
