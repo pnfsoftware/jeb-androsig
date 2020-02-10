@@ -31,9 +31,9 @@ public class LibraryGenerator {
 
     private static final boolean verbose = false;
 
-    public static void generate(IRuntimeProject prj, File sigFolder, String libname) {
+    public static void generate(IRuntimeProject prj, File sigFolder, String libname, String classnameFilter) {
         StringBuilder sb = new StringBuilder();
-        DexProcessor proc = new DexProcessor();
+        DexProcessor proc = new DexProcessor(classnameFilter);
 
         record(sb, ";comment=JEB signature file");
         record(sb, ";author=" + Licensing.user_name);

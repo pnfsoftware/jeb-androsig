@@ -8,6 +8,7 @@ package com.pnf.androsig.gen;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import com.pnf.androsig.common.SignatureHandler;
 import com.pnfsoftware.jeb.core.units.code.ICodeType;
@@ -17,6 +18,7 @@ import com.pnfsoftware.jeb.core.units.code.android.dex.IDexCodeItem;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethod;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexMethodData;
 import com.pnfsoftware.jeb.core.units.code.android.dex.IDexPrototype;
+import com.pnfsoftware.jeb.util.format.Strings;
 import com.pnfsoftware.jeb.util.logging.GlobalLog;
 import com.pnfsoftware.jeb.util.logging.ILogger;
 
@@ -27,11 +29,19 @@ import com.pnfsoftware.jeb.util.logging.ILogger;
 public class DexProcessor {
     private static final ILogger logger = GlobalLog.getLogger(DexProcessor.class);
 
+    private String classnameFilter;
     private int methodCount = 0;
 
     private Map<Integer, Map<Integer, Integer>> allCallerLists = new HashMap<>();
     private Map<Integer, String> sigMap = new HashMap<>();
     private Map<Integer, String> hierarchyMap = new HashMap<>();
+
+    /**
+     * @param classnameFilter regular expression of classes to be processed
+     */
+    public DexProcessor(String classnameFilter) {
+        this.classnameFilter = classnameFilter;
+    }
 
     public boolean processDex(IDexUnit dex) {
         if(!dex.isProcessed()) {
@@ -44,12 +54,19 @@ public class DexProcessor {
             logger.info("No classes in current project");
             return false;
         }
+        Pattern p = null;
+        if(!Strings.isBlank(classnameFilter)) {
+            p = Pattern.compile(classnameFilter);
+        }
         for(IDexClass eClass: classes) {
             List<? extends IDexMethod> methods = eClass.getMethods();
             if(methods == null || methods.size() == 0) {
                 continue;
             }
             String classname = eClass.getClassType().getSignature(true);
+            if(p != null && !p.matcher(classname).matches()) {
+                continue;
+            }
             for(IDexMethod m: methods) {
                 if(!m.isInternal()) {
                     continue;

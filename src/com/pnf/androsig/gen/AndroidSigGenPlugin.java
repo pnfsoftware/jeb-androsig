@@ -70,7 +70,8 @@ public class AndroidSigGenPlugin extends AbstractEnginesPlugin {
 
     @Override
     public List<? extends IOptionDefinition> getExecutionOptionDefinitions() {
-        return Arrays.asList(new OptionDefinition("libname", "Library name"));
+        return Arrays.asList(new OptionDefinition("libname", "Library name"),
+                new OptionDefinition("filter", "Classname regular expression "));
     }
 
     @Override
@@ -106,7 +107,14 @@ public class AndroidSigGenPlugin extends AbstractEnginesPlugin {
         if(Strings.isBlank(libname)) {
             libname = prj.getName();
         }
+        String filter = executionOptions.get("filter");
+        if(!Strings.isBlank(filter)) {
+            if(!filter.startsWith("L")) {
+                logger.error("Classname Regular expression is invalid. Expected format: 'Landroid/support/v4/.*'");
+                return;
+            }
+        }
 
-        LibraryGenerator.generate(prj, sigFolder, libname);
+        LibraryGenerator.generate(prj, sigFolder, libname, filter);
     }
 }
