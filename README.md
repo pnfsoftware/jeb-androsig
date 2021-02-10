@@ -4,8 +4,6 @@
 
 The purpose of this plugin is to help deobfuscate obfuscated applications. Using our generic collection of signatures for common libraries, library code can be recognized; methods and classes can be renamed; package hierarchies can be rebuilt. 
 
-Minimum JEB version: [JEB 3.3](https://www.pnfsoftware.com/)
-
 Tutorials on how to use:
 
 - [Post on Androidsig 1.0](https://www.pnfsoftware.com/blog/jeb-library-code-matching-for-android/) (important read)

@@ -38,7 +38,6 @@ import com.pnfsoftware.jeb.core.IPluginInformation;
 import com.pnfsoftware.jeb.core.IRuntimeProject;
 import com.pnfsoftware.jeb.core.PluginInformation;
 import com.pnfsoftware.jeb.core.RuntimeProjectUtil;
-import com.pnfsoftware.jeb.core.Version;
 import com.pnfsoftware.jeb.core.events.J;
 import com.pnfsoftware.jeb.core.events.JebEvent;
 import com.pnfsoftware.jeb.core.units.code.android.IDexUnit;
@@ -65,7 +64,7 @@ public class AndroidSigApplyPlugin extends AbstractEnginesPlugin {
     public IPluginInformation getPluginInformation() {
         return new PluginInformation("Android Code Recognition",
                 "Apply code signatures to identify Android libraries", "PNF Software",
-                AndroSigCommon.VERSION, Version.create(3, 1, 0));
+                AndroSigCommon.VERSION);
     }
 
     @Override
