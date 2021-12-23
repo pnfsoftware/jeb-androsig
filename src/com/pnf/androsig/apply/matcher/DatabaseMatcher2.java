@@ -490,7 +490,9 @@ class DatabaseMatcher2 implements IDatabaseMatcher, ISignatureMetrics, IMatcherV
                     newBestCandidates.add(cand);
                 }
             }
-            bestCandidates = new ArrayList<>(diffMatch.get(diffMatch.firstKey()));
+            if(!diffMatch.isEmpty()) {
+                bestCandidates = new ArrayList<>(diffMatch.get(diffMatch.firstKey()));
+            }
         }
 
         if(bestCandidates.size() == 1) {
