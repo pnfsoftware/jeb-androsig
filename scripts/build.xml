@@ -2,7 +2,6 @@
 <!--===============================================================================================
 Ant build file to build and package the JEB plugin.
 Requirements:
-- JEB 3.0.7 or above
 - Set up the JEB_HOME environment variable to point to your JEB installation folder.
 - Customize the outfile, entryclass, extcp_build, and extcp_manifest properties.
 ================================================================================================-->
@@ -33,8 +32,8 @@ Requirements:
     </fail>
 
     <property name="debuglevel" value="source,lines,vars"/>
-    <property name="target" value="1.8"/>
-    <property name="source" value="1.8"/>
+    <property name="target" value="11"/>
+    <property name="source" value="11"/>
 
     <!-- Mandatory properties -->
     <property name="src" value="src"/>
