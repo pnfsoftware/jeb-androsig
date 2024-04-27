@@ -246,7 +246,11 @@ public class StructureInfo {
             if(classSigPath.equals(eClass.getSignature(true)) || classSigPath.contains("$")) {
                 continue;
             }
-            String packageSigPath = classSigPath.substring(0, classSigPath.lastIndexOf("/")) + ";";
+            int pos = classSigPath.lastIndexOf("/");
+            if(pos < 0) {
+                continue;  // package-less
+            }
+            String packageSigPath = classSigPath.substring(0, pos) + ";";
             StructureHandler.createPackage(unit, packageSigPath);
             StructureHandler.moveClass(unit, packageSigPath, eClass.getItemId());
         }
